@@ -1,0 +1,15 @@
+# Godot
+.godot/
+export_credentials.cfg
+.android/
+android/
+
+# Builds
+build/
+
+# Secrets — never commit
+*.keystore
+*.jks
+*.p12
+service-account*.json
+.env

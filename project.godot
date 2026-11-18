@@ -1,0 +1,44 @@
+; Engine configuration file.
+; Godot 4.7.2 — APP FINANCE
+
+config_version=5
+
+[application]
+
+config/name="APP FINANCE"
+config/description="All your savings and investments in one place."
+config/version="0.1.0"
+run/main_scene="res://src/ui/main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+run/low_processor_mode=true
+config/icon="res://assets/icon.svg"
+
+[autoload]
+
+Store="*res://src/core/store.gd"
+PriceService="*res://src/core/price_service.gd"
+
+[display]
+
+window/size/viewport_width=412
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=1
+window/energy_saving/keep_screen_on=false
+
+[gui]
+
+theme/default_font_multichannel_signed_distance_field=false
+common/drag_threshold=12
+
+[input_devices]
+
+pointing/emulate_mouse_from_touch=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+environment/defaults/default_clear_color=Color(0.98, 0.98, 0.976, 1)
