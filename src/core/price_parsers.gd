@@ -7,7 +7,7 @@ class_name PriceParsers
 ## Stock exchanges we support, with their Alpha Vantage suffix, currency and OpenFIGI codes.
 const EXCHANGES := [
 	{"suffix": ".PAR", "label": "Euronext Paris", "currency": "EUR", "figi": ["FP"]},
-	{"suffix": ".DEX", "label": "Xetra", "currency": "EUR", "figi": ["GY"]},
+	{"suffix": ".DEX", "label": "Xetra", "currency": "EUR", "figi": ["GY", "GR"]},
 	{"suffix": ".AMS", "label": "Euronext Amsterdam", "currency": "EUR", "figi": ["NA"]},
 	{"suffix": ".BRU", "label": "Euronext Brussels", "currency": "EUR", "figi": ["BB"]},
 	{"suffix": ".LIS", "label": "Euronext Lisbon", "currency": "EUR", "figi": ["PL"]},
