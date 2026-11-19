@@ -15,6 +15,7 @@ var _exact: CheckButton
 var _units: LineEdit
 var _price: LineEdit
 var _note: LineEdit
+var _repeat: CheckButton
 var _preview: Label
 var _form: VBoxContainer
 var _built := false
@@ -131,6 +132,14 @@ func _build_form() -> void:
 		_exact.toggled.connect(func(on): exact_box.visible = on)
 		_form.add_child(exact_box)
 		_update_preview()
+	_repeat = null
+	if movement_id == "" and kind in ["deposit", "withdrawal"]:
+		_repeat = CheckButton.new()
+		_repeat.text = "Repeat every month"
+		_repeat.focus_mode = Control.FOCUS_NONE
+		_repeat.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_form.add_child(_repeat)
+		_form.add_child(Ui.label("Same amount on the same day each month. If the date is in the past, the months up to today are added too — handy for a regular savings plan.", "Faint", true))
 	_note = Ui.line_edit("Optional", _mv.get("note", ""))
 	_form.add_child(Ui.field("Note", _note))
 	_form.add_child(Ui.spacer(4))
@@ -196,6 +205,13 @@ func _save() -> void:
 		fields["price_4"] = p if p != null and p > 0 else Money.price_for(amt - fields["fee_cents"], u)
 	if movement_id == "":
 		Store.add_movement(fields)
+		if _repeat != null and _repeat.button_pressed:
+			var n_before: int = Store.data["movements"].size()
+			Store.add_recurring({"holding_id": holding_id, "kind": kind, "amount_cents": fields["amount_cents"],
+				"day": Dates.day(date), "start": date, "last": date})
+			var extra: int = Store.data["movements"].size() - n_before
+			if extra > 0:
+				app.toast("Saved · %d past month%s added" % [extra, "s" if extra > 1 else ""])
 		app.toast("Saved")
 	else:
 		Store.update_movement(movement_id, fields)

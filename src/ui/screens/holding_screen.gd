@@ -91,6 +91,21 @@ func refresh() -> void:
 		actions.add_child(Ui.expand(Ui.button("Other…", "", func(): app.push(MovementEdit.new(holding_id, kinds[1])))))
 	add_child(actions)
 
+	var rules := Store.recurring_for(holding_id)
+	if not rules.is_empty():
+		var rc := Ui.card(4)
+		var rb := Ui.body(rc)
+		rb.add_child(Ui.label("Repeats every month", "Strong"))
+		for r in rules:
+			var row := Ui.hbox()
+			var txt := "%s %s on day %d" % [Catalog.MOVEMENT_KINDS.get(r["kind"], r["kind"]), Money.fmt(r["amount_cents"], cur, false, 0), int(r["day"])]
+			row.add_child(Ui.expand(Ui.label(txt)))
+			var rid: String = r["id"]
+			row.add_child(Ui.button("Stop", "Ghost", func():
+				app.confirm("Stop repeating?", "Entries already added stay in the history.", "Stop", func(): Store.delete_recurring(rid))))
+			rb.add_child(row)
+		add_child(rc)
+
 	var hist := Ui.card(2)
 	var hib := Ui.body(hist)
 	hib.add_child(Ui.label("History", "Strong"))
