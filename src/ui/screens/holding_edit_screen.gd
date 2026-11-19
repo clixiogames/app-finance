@@ -12,6 +12,7 @@ var _built := false
 # market selection
 var _price_key := ""
 var _currency := ""
+var _quote_currency := ""
 var _picked_label: Label
 var _results: VBoxContainer
 var _query: LineEdit
@@ -43,6 +44,7 @@ func refresh() -> void:
 		account_id = _h.get("account_id", "")
 		_price_key = _h.get("price_key", "")
 		_currency = _h.get("currency", "")
+		_quote_currency = _h.get("quote_currency", "")
 		_mode = _h.get("interest_mode", Store.setting("interest_mode", "auto"))
 	else:
 		_mode = Store.setting("interest_mode", "auto")
@@ -123,7 +125,7 @@ func _build_dynamic() -> void:
 
 func _build_market(t: Dictionary) -> void:
 	var is_crypto: bool = t["source"] == "coingecko"
-	if not _price_key.begins_with("cg:" if is_crypto else "y:"):
+	if not _price_key.begins_with("cg:" if is_crypto else "av:"):
 		_price_key = ""
 	var hint := "Search by name or symbol, e.g. “bitcoin”" if is_crypto else "Search by ISIN, ticker or name, e.g. “IE00B4L5Y983” or “MSCI World”"
 	_query = Ui.line_edit("ISIN, ticker or name" if not is_crypto else "Coin name or symbol")
@@ -138,6 +140,13 @@ func _build_market(t: Dictionary) -> void:
 	_results = Ui.vbox(4)
 	_dynamic.add_child(_results)
 	if not is_crypto:
+		if not PriceService.has_key():
+			var note := Ui.card(8)
+			var nb := Ui.body(note)
+			nb.add_child(Ui.label("Live prices need your free price key", "Strong"))
+			nb.add_child(Ui.label("You can save this holding now — the value will show the money you put in until prices are connected.", "Muted", true))
+			nb.add_child(Ui.button("Set up live prices (1 minute)", "", func(): app.push(preload("res://src/ui/screens/price_setup_screen.gd").new())))
+			_dynamic.add_child(note)
 		_dynamic.add_child(Ui.label("Funds without a public price (common in assurance vie): choose “Euro fund” or “Other asset” and update the value yourself.", "Faint", true))
 
 
@@ -148,7 +157,11 @@ func _update_picked() -> void:
 		_picked_label.text = "No price source selected yet."
 		_picked_label.theme_type_variation = "Muted"
 	else:
-		_picked_label.text = "✓ Price source: " + _price_key.substr(_price_key.find(":") + 1) + ((" · " + _currency) if _currency != "" else "")
+		var sym := _price_key.substr(_price_key.find(":") + 1)
+		var where := ""
+		if _price_key.begins_with("av:"):
+			where = " · " + PriceParsers.exchange_for_symbol(sym)["label"]
+		_picked_label.text = "✓ " + sym + where + ((" · " + _currency) if _currency != "" else "")
 		_picked_label.theme_type_variation = "Accent"
 
 
@@ -170,27 +183,42 @@ func _search(is_crypto: bool) -> void:
 		_results.add_child(Ui.label(r["error"], "Loss", true))
 		return
 	if r["results"].is_empty():
-		_results.add_child(Ui.label("Nothing found. Try the ISIN from your broker statement.", "Muted", true))
+		_results.add_child(Ui.label("Nothing found. Try the ISIN from your statement, the ticker (e.g. CW8) or the fund's name.", "Muted", true))
 		return
 	for it in r["results"]:
 		var b := Button.new()
 		b.theme_type_variation = "Row"
 		b.focus_mode = Control.FOCUS_NONE
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		b.clip_text = true
+		b.custom_minimum_size = Vector2(0, 54)
+		var v := Ui.vbox(0)
+		v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		v.offset_left = 4
+		v.offset_right = -4
+		v.alignment = BoxContainer.ALIGNMENT_CENTER
+		var title_l := Ui.shrinkable(Ui.label(it["name"]))
+		var sub := ""
 		if is_crypto:
-			b.text = "%s  ·  %s" % [it["name"], it["symbol"]]
+			sub = it["symbol"]
 		else:
-			b.text = "%s  ·  %s  ·  %s" % [it["symbol"], it["name"], it["exchange"]]
+			sub = "%s · %s%s" % [it["symbol"], it["exchange"], (" · " + it["currency"]) if it.get("currency", "") != "" else ""]
+		var sub_l := Ui.shrinkable(Ui.label(sub, "Muted"))
+		v.add_child(title_l)
+		v.add_child(sub_l)
+		for n in [v, title_l, sub_l]:
+			n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(v)
 		var item: Dictionary = it
 		b.pressed.connect(func():
 			if is_crypto:
 				_price_key = "cg:" + item["id"]
 				_currency = Store.setting("currency", "EUR")
+				_quote_currency = ""
 			else:
-				_price_key = "y:" + item["symbol"]
-				_currency = ""
+				_price_key = "av:" + item["symbol"]
+				_quote_currency = item.get("currency", "")
+				_currency = "GBP" if _quote_currency in ["GBX", "GBp"] else _quote_currency
+				if _currency == "":
+					_currency = PriceParsers.exchange_for_symbol(item["symbol"]).get("currency", "")
 			if _name.text.strip_edges() == "":
 				_name.text = item["name"]
 			Ui.clear(_results)
@@ -238,7 +266,8 @@ func _save() -> void:
 				app.toast("Search and pick the instrument first")
 				return
 			fields["price_key"] = _price_key
-			fields["currency"] = _currency if _currency != "" else _h.get("currency", "")
+			fields["currency"] = _currency if _currency != "" else _h.get("currency", Store.setting("currency", "EUR"))
+			fields["quote_currency"] = _quote_currency
 		"interest":
 			fields["rate_source"] = t.get("rate", "fixed")
 			fields["interest_mode"] = _mode

@@ -17,7 +17,7 @@
 <body>
 <main>
   <h1>Privacy policy</h1>
-  <p class="muted">APP FINANCE · Last updated 19 November 2026</p>
+  <p class="muted">APP FINANCE · Last updated 19 November 2026 (v0.3)</p>
 
   <h2>In short</h2>
   <p>APP FINANCE does not collect, store or share your personal or financial data. Everything you enter stays on your device.</p>
@@ -27,19 +27,23 @@
   <p>On Android, the system may include the app's data in your own Google device backup if you have enabled it. This is controlled by your device settings and your Google account, not by us.</p>
 
   <h2>Price lookups</h2>
-  <p>To show current values, the app downloads public prices and exchange rates. These requests contain only the identifier of the instrument (for example a ticker, an ISIN or a coin name) and dates — never your amounts, balances or any personal information. The sources are:</p>
+  <p>To show current values, the app downloads public prices and exchange rates directly from these services. The requests contain only the identifier of the instrument (for example a ticker, an ISIN or a coin name) and dates — never your amounts, balances or any personal information:</p>
   <ul>
-    <li>Yahoo Finance public data (funds, ETFs, stocks) — on the website these requests pass through our relay, which forwards them without storing anything;</li>
+    <li>Alpha Vantage (funds, ETFs, stocks) — using your own free personal key, which you create on their website and which stays on your device;</li>
+    <li>OpenFIGI (to find an instrument from its ISIN);</li>
     <li>CoinGecko (crypto prices);</li>
     <li>Frankfurter / European Central Bank (exchange rates).</li>
   </ul>
-  <p>Like any website, these services can see your device's IP address when they answer a request. Their own privacy policies apply.</p>
+  <p>There is no server of ours in between. Like any website, these services can see your device's IP address when they answer a request. Their own privacy policies apply.</p>
 
   <h2>Backups</h2>
   <p>When you save a backup file, it is written where you choose (for example your Downloads folder or Google Drive). You are in control of that file.</p>
 
   <h2>No tracking</h2>
   <p>The app contains no analytics, no advertising and no third-party tracking.</p>
+
+  <h2>App lock</h2>
+  <p>If you turn on the app lock, only a scrambled (hashed) version of your PIN is stored on your device. It is never included in backups.</p>
 
   <h2>Deleting your data</h2>
   <p>Use Settings › Delete all my data, uninstall the app, or clear the website's data in your browser.</p>

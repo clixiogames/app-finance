@@ -31,6 +31,7 @@ func _init() -> void:
 	test_portfolio_market()
 	test_portfolio_interest_and_manual()
 	test_savings()
+	test_annual_return()
 	test_parsers()
 	test_migration()
 	test_spending()
@@ -191,6 +192,23 @@ func test_portfolio_interest_and_manual() -> void:
 	eq(t["debts"], -10000000, "debts total")
 
 
+func test_annual_return() -> void:
+	var d := _base_data()
+	d["holdings"].append({"id": "m", "account_id": "a1", "name": "Fund", "type": "other"})
+	d["movements"].append({"id": "1", "holding_id": "m", "date": "2025-01-01", "kind": "deposit", "amount_cents": 100000})
+	d["movements"].append({"id": "2", "holding_id": "m", "date": "2026-01-01", "kind": "valuation", "amount_cents": 110000})
+	var r := Portfolio.new(d).annual_return("m", "2026-01-01")
+	check(r["ok"], "xirr computed")
+	eq(r["bps"], 1000, "10 % in one year")
+	d["movements"].append({"id": "3", "holding_id": "m", "date": "2025-07-02", "kind": "deposit", "amount_cents": 100000})
+	d["movements"][1]["amount_cents"] = 215000
+	var r2 := Portfolio.new(d).annual_return("", "2026-01-01")
+	check(r2["ok"] and r2["bps"] > 1000 and r2["bps"] < 1100, "mid-year deposit weighs less (got %d)" % r2["bps"])
+	check(not Portfolio.new(d).annual_return("m", "2025-02-01")["ok"], "too short period not annualised")
+	var s := Portfolio.new(d).holding_state(d["holdings"][0], "2026-01-01")
+	check(not s["closed"], "open holding")
+
+
 func test_savings() -> void:
 	var d := _base_data()
 	d["holdings"].append({"id": "la", "account_id": "a1", "name": "Livret A", "type": "livret_a", "rate_source": "livret_a", "interest_mode": "none"})
@@ -210,20 +228,43 @@ func test_savings() -> void:
 
 
 func test_parsers() -> void:
-	var yahoo := {"chart": {"result": [{
-		"meta": {"currency": "GBp", "gmtoffset": 0, "regularMarketPrice": 812.5, "regularMarketTime": 1763424000},
-		"timestamp": [1763337600],
-		"indicators": {"quote": [{"close": [800.0]}]},
-	}]}}
-	var py := PriceParsers.parse_yahoo_chart(yahoo)
-	check(py["ok"], "yahoo parse ok")
-	eq(py["currency"], "GBP", "pence converted")
-	eq(py["points"]["2025-11-17"], 80000, "pence price /100")
+	# Alpha Vantage daily (format checked live on 2026-11-19)
+	var av := {"Meta Data": {"2. Symbol": "EUNL.DEX"}, "Time Series (Daily)": {
+		"2026-11-18": {"1. open": "128.2250", "4. close": "127.1050"},
+		"2026-11-17": {"1. open": "128.7550", "4. close": "127.0800"}}}
+	var pa := PriceParsers.parse_av_series(av)
+	check(pa["ok"], "av daily ok")
+	eq(pa["points"]["2026-11-18"], 1271050, "av close exact")
+	var wk := PriceParsers.parse_av_series({"Weekly Time Series": {"2026-11-13": {"4. close": "812.5000"}}}, "GBX")
+	eq(wk["points"]["2026-11-13"], 81250, "av weekly in pence -> pounds")
+	var lim := PriceParsers.parse_av_series({"Information": "We have detected your API key and our standard API rate limit is 25 requests per day."})
+	check(not lim["ok"] and lim["limit"], "av daily limit detected")
+	check(not PriceParsers.parse_av_series({"Error Message": "Invalid API call."})["ok"], "av unknown symbol")
+	var se := PriceParsers.parse_av_search({"bestMatches": [{"1. symbol": "TSCO.LON", "2. name": "Tesco PLC", "3. type": "Equity", "4. region": "United Kingdom", "8. currency": "GBX"}]})
+	eq(se["results"][0]["currency"], "GBX", "av search currency")
+	# OpenFIGI (format checked live on 2026-11-19)
+	var figi := [{"data": [
+		{"ticker": "EUNL", "exchCode": "GY", "name": "ISHARES CORE MSCI WORLD", "securityType2": "Mutual Fund"},
+		{"ticker": "EUNL", "exchCode": "GR", "name": "ISHARES CORE MSCI WORLD", "securityType2": "Mutual Fund"},
+		{"ticker": "SWDA", "exchCode": "LN", "name": "ISHARES CORE MSCI WORLD", "securityType2": "Mutual Fund"},
+		{"ticker": "CW8", "exchCode": "FP", "name": "AMUNDI MSCI WORLD", "securityType2": "Mutual Fund"},
+		{"ticker": "IWDA", "exchCode": "NA", "name": "ISHARES CORE MSCI WORLD", "securityType2": "Mutual Fund"}]}]
+	var listings := PriceParsers.parse_openfigi(figi)
+	eq(listings.size(), 3, "only supported exchanges kept")
+	eq(listings[0]["symbol"], "CW8.PAR", "Paris listed first")
+	eq(listings[1]["symbol"], "EUNL.DEX", "Xetra mapped to .DEX")
+	eq(listings[1]["currency"], "EUR", "Xetra currency")
+	check(PriceParsers.is_isin("IE00B4L5Y983"), "isin detected")
+	check(not PriceParsers.is_isin("CW8"), "ticker is not isin")
+	eq(PriceParsers.yahoo_to_av("CW8.PA"), "CW8.PAR", "yahoo -> av Paris")
+	eq(PriceParsers.yahoo_to_av("AAPL"), "AAPL", "yahoo -> av US")
+	eq(PriceParsers.exchange_for_symbol("AAPL")["currency"], "USD", "US listing currency")
 	var cg := PriceParsers.parse_coingecko({"prices": [[1763337600000, 81234.5]]}, "eur")
 	eq(cg["points"]["2025-11-17"], 812345000, "coingecko parse")
 	var fx := PriceParsers.parse_frankfurter({"rates": {"2026-01-02": {"EUR": 0.9123}}}, "EUR")
 	eq(fx["points"]["2026-01-02"], 912300, "frankfurter parse")
-	check(not PriceParsers.parse_yahoo_chart({"chart": {"result": null}})["ok"], "yahoo empty")
+	check(PriceParsers.looks_like_key("ABCD1234EFGH5678"), "key format ok")
+	check(not PriceParsers.looks_like_key("hello world"), "key format rejects spaces")
 
 
 func test_migration() -> void:
@@ -236,6 +277,12 @@ func test_migration() -> void:
 	eq(m["settings"]["interest_mode"], "auto", "default filled")
 	eq(m["prices"]["k"]["points"]["2026-01-01"], 12, "price int")
 	check(m["holdings"] is Array, "missing lists created")
+	var old := {"app": "app-finance", "schema": 2, "settings": {"relay_url": "x"},
+		"holdings": [{"id": "h", "price_key": "y:CW8.PA"}], "prices": {"y:CW8.PA": {"points": {"2026-01-02": 5000000}}}}
+	var m2 := StoreScript.migrate(old)
+	eq(m2["holdings"][0]["price_key"], "av:CW8.PAR", "yahoo key migrated")
+	eq(m2["prices"]["av:CW8.PAR"]["points"]["2026-01-02"], 5000000, "stored prices kept")
+	check(not m2["settings"].has("relay_url"), "relay setting removed")
 
 
 func test_spending() -> void:

@@ -102,6 +102,48 @@ func _ready() -> void:
 	check(Store.transactions().size() == 3, "import restores spending")
 	check(Store.import_json("{\"x\":1}") != "", "rejects foreign file")
 
+	# Device-only settings never go into backups
+	Store.data["settings"]["av_key"] = "ABCDEF1234567890"
+	var exported := Store.export_json()
+	check(not exported.contains("ABCDEF1234567890"), "price key not in backup")
+	check(Store.import_json(exported) == "", "re-import ok")
+	check(Store.setting("av_key") == "ABCDEF1234567890", "price key kept on device after restore")
+
+	# App lock
+	main.push(preload("res://src/ui/screens/pin_setup_screen.gd").new())
+	await _frames()
+	var ps = main.current()
+	ps._on_pin("1234")
+	ps._on_pin("1234")
+	await _frames()
+	check(str(Store.setting("pin_hash")) != "" and not str(Store.setting("pin_hash")).contains("1234"), "PIN stored as hash")
+	check(not Store.export_json().contains(str(Store.setting("pin_hash"))), "PIN hash not in backup")
+	main.lock_if_needed()
+	await _frames()
+	check(main.lock_layer != null, "app locked")
+	main.lock_layer._check("0000")
+	check(main.lock_layer != null, "wrong PIN keeps it locked")
+	main.lock_layer._check("1234")
+	await _frames()
+	check(main.lock_layer == null, "right PIN unlocks")
+	Store.set_settings({"pin_hash": "", "pin_salt": ""})
+
+	# Sample data mode
+	Store.set_data(SampleData.build("2026-11-18"), false)
+	main.reload_theme()
+	await _frames()
+	var st: Dictionary = Store.portfolio.totals()
+	check(Store.setting("sample", false), "sample flag set")
+	check(st["value"] > 0 and st["missing"] == 0, "sample has values and prices")
+	check(PriceService.waiting_for_key() == 0, "sample needs no price key")
+	var ar: Dictionary = Store.portfolio.annual_return()
+	check(ar["ok"], "sample annual return")
+	for tab in ["overview", "accounts", "spending", "settings"]:
+		main.switch_tab(tab)
+		await _frames()
+	main.push(preload("res://src/ui/screens/price_setup_screen.gd").new())
+	await _frames()
+
 	print("Flow test: ", "OK" if failures == 0 else "%d failure(s)" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
 

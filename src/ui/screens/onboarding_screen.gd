@@ -42,6 +42,11 @@ func refresh() -> void:
 	add_child(Ui.field("Interest on savings accounts (Livret A, LDDS, LEP…)", Ui.choices(modes, _mode, func(id): _mode = id), "You can change this per account later."))
 	add_child(Ui.spacer(6))
 	add_child(Ui.button("Get started", "Primary", _start))
+	add_child(Ui.button("Explore with sample data first", "Ghost", func():
+		var d := SampleData.build()
+		d["settings"]["theme"] = Store.setting("theme", "system")
+		Store.set_data(d)
+		app.finish_onboarding()))
 	add_child(Ui.label("For information only — this app does not give financial advice.", "Faint", true))
 
 

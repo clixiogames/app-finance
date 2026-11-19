@@ -35,6 +35,13 @@ func refresh() -> void:
 		for h in hs:
 			states[h["id"]] = p.holding_state(h)
 			total += states[h["id"]]["value"]
+		# Biggest first; sold/emptied holdings at the end.
+		hs.sort_custom(func(x, y):
+			var sx: Dictionary = states[x["id"]]
+			var sy: Dictionary = states[y["id"]]
+			if sx["closed"] != sy["closed"]:
+				return sy["closed"]
+			return absi(sx["value"]) > absi(sy["value"]))
 		var head := Ui.hbox()
 		var titles := Ui.vbox(0)
 		titles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -80,7 +87,9 @@ func _holding_row(h: Dictionary, s: Dictionary, cur: String) -> Button:
 	left.add_child(name_l)
 	var t: Dictionary = Catalog.holding_type(h.get("type", "other"))
 	var info: String = t["label"]
-	if s["missing_price"]:
+	if s["closed"]:
+		info += " · closed"
+	elif s["missing_price"]:
 		info += " · no price yet"
 	elif s["estimated"]:
 		info += " · interest estimated"

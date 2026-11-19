@@ -4,7 +4,9 @@ extends Node
 
 signal changed
 
-const SCHEMA := 2
+const SCHEMA := 3
+## Settings that stay on this device (never in backups): price key, usage counter, PIN.
+const DEVICE_ONLY := ["av_key", "av_calls", "pin_hash", "pin_salt", "pin_len"]
 const SAVE_PATH := "user://finance_data.json"
 const TMP_PATH := "user://finance_data.tmp"
 const BACKUP_PATH := "user://finance_data.prev.json"
@@ -29,7 +31,11 @@ static func default_data() -> Dictionary:
 			"interest_mode": "auto",
 			"onboarded": false,
 			"theme": "system",
-			"relay_url": "",
+			"av_key": "",
+			"av_calls": {},
+			"pin_hash": "",
+			"pin_salt": "",
+			"sample": false,
 			"last_backup": "",
 			"prices_updated": "",
 		},
@@ -102,6 +108,19 @@ static func migrate(d: Dictionary) -> Dictionary:
 			out["spending"][k] = [] if k == "transactions" else {}
 	for t in out["spending"]["transactions"]:
 		t["amount_cents"] = int(t.get("amount_cents", 0))
+	# v3: Yahoo symbols -> Alpha Vantage symbols; relay removed.
+	out["settings"].erase("relay_url")
+	for h in out["holdings"]:
+		var key: String = str(h.get("price_key", ""))
+		if key.begins_with("y:"):
+			var sym := PriceParsers.yahoo_to_av(key.substr(2))
+			h["price_key"] = "av:" + sym
+			if out["prices"].has(key):
+				out["prices"]["av:" + sym] = out["prices"][key]
+				out["prices"].erase(key)
+	for key in out["prices"].keys():
+		if str(key).begins_with("y:"):
+			out["prices"].erase(key)
 	out["schema"] = SCHEMA
 	return out
 
@@ -347,6 +366,9 @@ func clear_spending() -> void:
 func export_json() -> String:
 	var copy := data.duplicate(true)
 	copy["exported"] = now_iso()
+	# Device-only settings are not put in backup files.
+	for k in DEVICE_ONLY:
+		copy["settings"].erase(k)
 	return JSON.stringify(copy, "  ")
 
 
@@ -359,7 +381,14 @@ func import_json(text: String) -> String:
 		return "This file is not an APP FINANCE backup."
 	if int(parsed.get("schema", 0)) > SCHEMA:
 		return "This backup comes from a newer version of the app. Please update the app first."
-	set_data(parsed)
+	var keep := {}
+	for k in DEVICE_ONLY:
+		keep[k] = data["settings"].get(k)
+	var restored := migrate(parsed)
+	for k in keep:
+		if keep[k] != null:
+			restored["settings"][k] = keep[k]
+	set_data(restored)
 	return ""
 
 

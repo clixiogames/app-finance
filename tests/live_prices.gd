@@ -16,16 +16,19 @@ func _ready() -> void:
 	var from := Dates.add_days(Dates.today(), -40)
 
 	var s: Dictionary = await PriceService.search_market("IE00B4L5Y983")
-	report("Yahoo search by ISIN", s["ok"] and not s["results"].is_empty(),
-		str(s["results"].slice(0, 3)) if s["ok"] else s["error"])
-
-	var y: Dictionary = await PriceService.fetch_yahoo("CW8.PA", from)
-	report("Yahoo history CW8.PA", y.get("ok", false) and y["points"].size() > 15,
-		("%d days, currency %s, last %s" % [y["points"].size(), y["currency"], _last(y["points"])]) if y.get("ok", false) else y["error"])
-
-	var us: Dictionary = await PriceService.fetch_yahoo("AAPL", from)
-	report("Yahoo history AAPL (USD)", us.get("ok", false) and us["currency"] == "USD",
-		("%d days, currency %s" % [us["points"].size(), us["currency"]]) if us.get("ok", false) else us["error"])
+	report("OpenFIGI: listings for an ISIN", s["ok"] and not s["results"].is_empty(),
+		str(s["results"].slice(0, 4)) if s["ok"] else s["error"])
+	var s2: Dictionary = await PriceService.search_market("LU1681043599")
+	report("OpenFIGI: Amundi MSCI World (CW8) on Paris", s2["ok"] and s2["results"].any(func(x): return x["symbol"] == "CW8.PAR"),
+		str(s2["results"].slice(0, 3)) if s2["ok"] else s2["error"])
+	var key := OS.get_environment("AV_KEY")
+	if key != "":
+		Store.data["settings"]["av_key"] = key
+		var a: Dictionary = await PriceService.fetch_alpha_vantage("EUNL.DEX", "EUR", Dates.add_days(Dates.today(), -400), {})
+		report("Alpha Vantage: EUNL.DEX daily + weekly", a.get("ok", false) and a["points"].size() > 100,
+			("%d points" % a["points"].size()) if a.get("ok", false) else a["error"])
+	else:
+		print("SKIP Alpha Vantage — no AV_KEY secret set")
 
 	var c: Dictionary = await PriceService.search_crypto("bitcoin")
 	report("CoinGecko search", c["ok"] and not c["results"].is_empty(),
