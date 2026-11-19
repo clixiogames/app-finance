@@ -17,6 +17,11 @@ env:
 permissions:
   contents: read
 
+# Only the newest push on a branch keeps building (avoids two runs publishing at once).
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -180,6 +185,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete test-latest -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          sleep 5
           gh release create test-latest build/android/app-finance-test.apk -R "$GITHUB_REPOSITORY" \
             --prerelease --target "$GITHUB_SHA" --title "Android test build (latest)" \
             --notes "Automatic test build from $(date -u +%Y-%m-%d) (commit ${GITHUB_SHA::7}). Open this page on your Android phone, tap app-finance-test.apk, and allow installing from your browser when asked."
