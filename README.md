@@ -3,7 +3,7 @@
 All your savings and investments in one place — an Android app (Google Play) and an identical website.
 Built with **Godot 4.7.2**. Data stays on the device; no accounts, no servers, €0 to run.
 
-## What it does (v0.2)
+## What it does (v0.3)
 - Accounts (PEA, CTO, assurance vie, PER, livrets, crypto, property…) holding any type of asset:
   ETFs, funds, stocks, crypto, Livret A / LDDS / LEP, other savings, euro funds, property, loans.
 - Record money in/out as **amount + date**; units are computed from that day's **real price**
@@ -15,20 +15,22 @@ Built with **Godot 4.7.2**. Data stays on the device; no accounts, no servers, �
 - Backup: export/import a JSON file (or copy/paste as text).
 - Spending (separate from Wealth): import bank statements (CSV from most French banks, OFX), automatic categories that learn from your corrections, monthly in/out, breakdown by category, 6-month trend.
 
-## Price sources (free)
+## Price sources (free, used within their terms)
 | What | Source | Notes |
 |---|---|---|
-| ETFs, funds, stocks | Yahoo Finance public chart data | Unofficial; website needs the relay (CORS) |
-| Crypto | CoinGecko public API (keyless) | Last 365 days of history on the free plan |
-| Exchange rates | ECB via Frankfurter | Free, no key |
+| Funds, ETFs, stocks | Alpha Vantage | Each user's own free personal key (Settings › Live prices). 25 requests/day; daily closes for ~100 days + weekly closes for older dates; cached on device |
+| ISIN → listings | OpenFIGI (Bloomberg, open) | No key. Exchanges: Paris, Xetra, Amsterdam, Brussels, Lisbon, Frankfurt, US, Toronto |
+| Crypto | CoinGecko public API | No key; attribution shown; 365 days of history |
+| Exchange rates | ECB via Frankfurter | No key |
 | Livret A / LDDS / LEP rates | Built-in table `src/core/regulated_rates.gd` | Update each 1 Feb / 1 Aug |
+
+No server of ours sits in between: the app calls these services directly.
 
 ## Project layout
 ```
 src/core/      data, money maths, interest engine, portfolio calculations, price fetching
 src/ui/        app shell, theme, widgets, screens
 tests/         automated tests (run_tests.gd), end-to-end flow test, screenshot tool
-relay/         Cloudflare Worker that lets the website fetch Yahoo prices
 .github/       CI: tests → web build (GitHub Pages) → Android .aab/.apk
 ```
 
@@ -53,8 +55,7 @@ xvfb-run godot --path . --rendering-driver opengl3 --resolution 824x1800 res://t
 
 Without these, CI still builds the website and a test APK.
 
-## Price relay for the website
-1. Cloudflare dashboard → Workers & Pages → Create → Worker → paste `relay/worker.js` → Deploy.
-2. Put the worker URL in `PriceService.DEFAULT_RELAY` (or in the app: Settings › Price relay).
+## Optional CI secret
+`AV_KEY` — an Alpha Vantage key used only by the informational live-price check in CI.
 
 Disclaimer: informational only, not financial advice.

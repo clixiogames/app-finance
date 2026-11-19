@@ -211,6 +211,7 @@ func holding_state(h: Dictionary, date: String = "") -> Dictionary:
 				else:
 					s["value"] = s["invested"] + s["interest"] - s["fees"]
 				s["gain"] = s["value"] - s["invested"] + s["dividends"]
+	s["closed"] = s["deposits"] > 0 and s["value"] == 0 and (valuation != "market" or s["units"] <= 0)
 	return s
 
 
@@ -219,7 +220,7 @@ func totals(date: String = "") -> Dictionary:
 	if date == "":
 		date = Dates.today()
 	var out := {"value": 0, "invested": 0, "gain": 0, "assets": 0, "debts": 0,
-		"by_type": {}, "by_account": {}, "missing": 0, "estimated": false, "oldest_price": ""}
+		"by_type": {}, "by_account": {}, "missing": 0, "estimated": false, "oldest_price": "", "stale": 0}
 	for h in data.get("holdings", []):
 		var s := holding_state(h, date)
 		out["value"] += s["value"]
@@ -237,6 +238,8 @@ func totals(date: String = "") -> Dictionary:
 			out["missing"] += 1
 		if s["estimated"]:
 			out["estimated"] = true
+		if s["valuation"] == "market" and s["units"] > 0 and s["price_date"] != "" and s["price_date"] < Dates.add_days(date, -7):
+			out["stale"] += 1
 		if s["price_date"] != "" and (out["oldest_price"] == "" or s["price_date"] < out["oldest_price"]):
 			out["oldest_price"] = s["price_date"]
 	return out
@@ -252,9 +255,9 @@ func first_date() -> String:
 
 ## Value and money invested over time. months = 0 means since the first movement.
 ## Returns Array of {date, value, invested}.
-func series(months: int = 12) -> Array:
+func series(months: int = 12, hid: String = "") -> Array:
 	var today := Dates.today()
-	var first := first_date()
+	var first: String = first_date() if hid == "" else (movements(hid)[0]["date"] if not movements(hid).is_empty() else "")
 	if first == "":
 		return []
 	var start := first
@@ -279,10 +282,71 @@ func series(months: int = 12) -> Array:
 			key = Dates.month_key_add(key, 1)
 	dates.append(today)
 	var out := []
+	var h := holding(hid)
 	for dt in dates:
-		var t := totals(dt)
+		var t := totals(dt) if hid == "" else holding_state(h, dt)
 		out.append({"date": dt, "value": t["value"], "invested": t["invested"]})
 	return out
+
+
+## Annual return, money-weighted (XIRR): accounts for when money went in and out.
+## hid = "" for all holdings (debts excluded). Returns {ok, bps, since}.
+## Uses floating point for the RATE only (amounts stay exact integers elsewhere).
+func annual_return(hid: String = "", date: String = "") -> Dictionary:
+	if date == "":
+		date = Dates.today()
+	var flows := []  # [day, euros]
+	var final_value := 0
+	var hs: Array = [holding(hid)] if hid != "" else data.get("holdings", [])
+	for h in hs:
+		if h.is_empty() or h.get("type", "") == "loan":
+			continue
+		var market: bool = Catalog.holding_type(h.get("type", ""))["valuation"] == "market"
+		for mv in movements(h["id"]):
+			if mv["date"] > date:
+				break
+			var amt := float(mv.get("amount_cents", 0)) / 100.0
+			match mv.get("kind", ""):
+				"deposit":
+					flows.append([Dates.to_days(mv["date"]), -amt])
+				"withdrawal", "dividend":
+					flows.append([Dates.to_days(mv["date"]), amt])
+				"fee":
+					if market:
+						flows.append([Dates.to_days(mv["date"]), -amt])
+		final_value += holding_state(h, date)["value"]
+	if flows.is_empty():
+		return {"ok": false, "bps": 0, "since": ""}
+	flows.sort_custom(func(a, b): return a[0] < b[0])
+	var t0: int = flows[0][0]
+	var t_end := Dates.to_days(date)
+	if t_end - t0 < 90:
+		return {"ok": false, "bps": 0, "since": Dates.from_days(t0)}
+	flows.append([t_end, float(final_value) / 100.0])
+	var npv := func(rate: float) -> float:
+		var total := 0.0
+		for f in flows:
+			total += f[1] / pow(1.0 + rate, float(f[0] - t0) / 365.0)
+		return total
+	var lo := -0.95
+	var hi := 5.0
+	var f_lo: float = npv.call(lo)
+	var f_hi: float = npv.call(hi)
+	if f_lo * f_hi > 0:
+		return {"ok": false, "bps": 0, "since": Dates.from_days(t0)}
+	for i in 200:
+		var mid := (lo + hi) / 2.0
+		var f_mid: float = npv.call(mid)
+		if absf(f_mid) < 1e-7:
+			lo = mid
+			hi = mid
+			break
+		if (f_mid > 0) == (f_lo > 0):
+			lo = mid
+			f_lo = f_mid
+		else:
+			hi = mid
+	return {"ok": true, "bps": roundi((lo + hi) / 2.0 * 10000.0), "since": Dates.from_days(t0)}
 
 
 func income_for(key: String) -> int:

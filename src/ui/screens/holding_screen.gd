@@ -53,14 +53,35 @@ func refresh() -> void:
 				hb.add_child(Ui.label("No price yet — tap Refresh on the Overview, or enter exact units in each deposit.", "Faint", true))
 			if s["dividends"] > 0:
 				hb.add_child(Ui.kv("Dividends received", Money.fmt(s["dividends"], cur)))
-			hb.add_child(Ui.kv("Price source", h.get("price_key", "").substr(h.get("price_key", "").find(":") + 1)))
+			var pk: String = h.get("price_key", "")
+			var sym := pk.substr(pk.find(":") + 1)
+			if pk.begins_with("av:"):
+				hb.add_child(Ui.kv("Listing", "%s · %s" % [sym, PriceParsers.exchange_for_symbol(sym)["label"]]))
+				hb.add_child(Ui.label("Prices: Alpha Vantage, end of day.", "Faint"))
+				if not PriceService.has_key():
+					hb.add_child(Ui.button("Set up live prices", "", func(): app.push(preload("res://src/ui/screens/price_setup_screen.gd").new())))
+			elif pk.begins_with("cg:"):
+				hb.add_child(Ui.label("Prices: CoinGecko (data provided by CoinGecko).", "Faint"))
 		"interest":
 			var src: String = h.get("rate_source", "fixed")
 			hb.add_child(Ui.kv("Interest rate today", Money.fmt_bps(RegulatedRates.current_bps(src, h.get("fixed_rate_bps", 0)))))
 			hb.add_child(Ui.kv("Interest", Catalog.INTEREST_MODES.get(h.get("interest_mode", "auto"), "")))
 			if s["interest"] != 0:
 				hb.add_child(Ui.kv("Interest so far" + (" (estimated)" if s["estimated"] else ""), Money.fmt(s["interest"], cur)))
+	var ar := p.annual_return(holding_id)
+	if ar["ok"] and h.get("type", "") != "loan":
+		hb.add_child(Ui.kv("Annual return", Money.pct(ar["bps"], 10000) + " / yr", Ui.gain_variation(ar["bps"])))
 	add_child(hero)
+
+	if p.movements(holding_id).size() >= 1 and h.get("type", "") != "loan":
+		var cc := Ui.card(8)
+		var cb := Ui.body(cc)
+		cb.add_child(Ui.label("Value over time", "Strong"))
+		var ch := LineChart.new()
+		ch.custom_minimum_size = Vector2(0, 170)
+		ch.set_points(p.series(0, holding_id), cur)
+		cb.add_child(ch)
+		add_child(cc)
 
 	var actions := Ui.hbox(8)
 	var kinds := Catalog.movement_kinds_for(h)

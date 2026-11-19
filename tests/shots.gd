@@ -60,6 +60,16 @@ func _ready() -> void:
 	main.switch_tab("settings")
 	await _settle()
 	await shot("07_settings")
+	main.push(preload("res://src/ui/screens/price_setup_screen.gd").new())
+	await _settle()
+	await shot("12_price_setup")
+	main.pop_to_root()
+	Store.data["settings"]["pin_salt"] = "x"
+	Store.data["settings"]["pin_hash"] = PinPad.hash_pin("1234", "x")
+	main.lock_if_needed()
+	await _settle()
+	await shot("13_lock")
+	main.unlock()
 	Store.data["settings"]["onboarded"] = false
 	main._set_root(preload("res://src/ui/screens/onboarding_screen.gd").new())
 	await _settle()
@@ -82,90 +92,6 @@ func shot(name: String) -> void:
 
 # ---------- sample data (fake prices, for screenshots only) ----------
 
-func _walk(start: String, end: String, p0: float, drift: float, vol: float, seed_v: int, weekdays_only: bool) -> Dictionary:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_v
-	var pts := {}
-	var p := p0
-	var d := Dates.to_days(start)
-	while d <= Dates.to_days(end):
-		var wd := (d + 4) % 7  # 0 = Sunday
-		if not weekdays_only or (wd != 0 and wd != 6):
-			p *= 1.0 + drift + rng.randfn(0.0, vol)
-			pts[Dates.from_days(d)] = Money.from_float(p, Money.PRICE_SCALE)
-		d += 1
-	return pts
-
 
 func sample_data() -> Dictionary:
-	var d := StoreScript.default_data()
-	d["settings"]["onboarded"] = true
-	d["settings"]["monthly_income_cents"] = 280000
-	d["settings"]["prices_updated"] = "2026-11-18T07:30:00Z"
-	d["accounts"] = [
-		{"id": "a_pea", "name": "PEA Boursorama", "kind": "pea", "institution": "Boursorama"},
-		{"id": "a_bank", "name": "Livrets", "kind": "bank_savings", "institution": "La Banque Postale"},
-		{"id": "a_av", "name": "Assurance vie Linxea", "kind": "assurance_vie", "institution": "Linxea"},
-		{"id": "a_crypto", "name": "Crypto", "kind": "crypto", "institution": "Kraken"},
-	]
-	d["holdings"] = [
-		{"id": "h_world", "account_id": "a_pea", "name": "Amundi MSCI World", "type": "etf", "price_key": "y:CW8.PA", "currency": "EUR"},
-		{"id": "h_em", "account_id": "a_pea", "name": "Amundi MSCI Emerging", "type": "etf", "price_key": "y:PAEEM.PA", "currency": "EUR"},
-		{"id": "h_la", "account_id": "a_bank", "name": "Livret A", "type": "livret_a", "rate_source": "livret_a", "interest_mode": "auto", "price_key": ""},
-		{"id": "h_ldds", "account_id": "a_bank", "name": "LDDS", "type": "ldds", "rate_source": "ldds", "interest_mode": "auto", "price_key": ""},
-		{"id": "h_euro", "account_id": "a_av", "name": "Fonds euros", "type": "euro_fund", "price_key": ""},
-		{"id": "h_btc", "account_id": "a_crypto", "name": "Bitcoin", "type": "crypto", "price_key": "cg:bitcoin", "currency": "EUR"},
-	]
-	d["prices"]["y:CW8.PA"] = {"currency": "EUR", "points": _walk("2023-12-20", "2026-11-17", 420.0, 0.0005, 0.009, 7, true)}
-	d["prices"]["y:PAEEM.PA"] = {"currency": "EUR", "points": _walk("2023-12-20", "2026-11-17", 21.0, 0.0003, 0.011, 11, true)}
-	d["prices"]["cg:bitcoin"] = {"currency": "EUR", "points": _walk("2025-11-18", "2026-11-18", 82000.0, 0.0004, 0.025, 3, false)}
-	var mv := []
-	var key := "2024-01"
-	var i := 0
-	while key <= "2026-11":
-		mv.append({"id": "w%d" % i, "holding_id": "h_world", "date": key + "-05", "kind": "deposit", "amount_cents": 40000, "fee_cents": 0, "units_6": null, "price_4": null})
-		if i % 3 == 0:
-			mv.append({"id": "e%d" % i, "holding_id": "h_em", "date": key + "-06", "kind": "deposit", "amount_cents": 15000, "fee_cents": 0, "units_6": null, "price_4": null})
-		if i % 2 == 0:
-			mv.append({"id": "l%d" % i, "holding_id": "h_la", "date": key + "-02", "kind": "deposit", "amount_cents": 20000})
-		key = Dates.month_key_add(key, 1)
-		i += 1
-	mv.append({"id": "la0", "holding_id": "h_la", "date": "2023-12-28", "kind": "deposit", "amount_cents": 500000})
-	mv.append({"id": "la1", "holding_id": "h_la", "date": "2025-07-20", "kind": "withdrawal", "amount_cents": 150000})
-	mv.append({"id": "ld0", "holding_id": "h_ldds", "date": "2024-03-10", "kind": "deposit", "amount_cents": 600000})
-	mv.append({"id": "av0", "holding_id": "h_euro", "date": "2024-02-15", "kind": "deposit", "amount_cents": 1000000})
-	mv.append({"id": "av1", "holding_id": "h_euro", "date": "2024-12-31", "kind": "valuation", "amount_cents": 1025000})
-	mv.append({"id": "av2", "holding_id": "h_euro", "date": "2025-12-31", "kind": "valuation", "amount_cents": 1052000})
-	mv.append({"id": "b0", "holding_id": "h_btc", "date": "2025-12-10", "kind": "deposit", "amount_cents": 100000, "fee_cents": 0, "units_6": null, "price_4": null})
-	mv.append({"id": "b1", "holding_id": "h_btc", "date": "2026-04-10", "kind": "deposit", "amount_cents": 50000, "fee_cents": 0, "units_6": null, "price_4": null})
-	mv.append({"id": "w_sell", "holding_id": "h_world", "date": "2026-09-14", "kind": "withdrawal", "amount_cents": 200000, "fee_cents": 0, "units_6": null, "price_4": null})
-	for m in mv:
-		m["created"] = m["id"]
-	d["movements"] = mv
-	d["income"] = {"2026-09": 310000}
-	var lines := ["Date;Libellé;Montant"]
-	var spend := [
-		["01", "VIR SEPA RECU SALAIRE ACME SAS", "2800,00"], ["02", "PRLV SEPA LOYER FONCIA", "-850,00"],
-		["03", "CB CARREFOUR CITY 03/%s", "-46,20"], ["04", "CB UBER EATS PARIS", "-23,90"],
-		["05", "PRLV SEPA EDF", "-62,00"], ["06", "CB NAVIGO", "-86,40"], ["07", "PRLV SEPA NETFLIX.COM", "-13,49"],
-		["08", "CB PHARMACIE DU CENTRE", "-18,30"], ["10", "CB LECLERC DRIVE", "-112,75"], ["12", "CB FNAC", "-59,99"],
-		["13", "RETRAIT DAB PARIS", "-40,00"], ["14", "CB RESTAURANT LE PETIT ZINC", "-38,00"],
-		["15", "VIR SEPA VERS LIVRET A", "-200,00"], ["16", "PRLV SEPA FREE MOBILE", "-19,99"], ["17", "CB DECATHLON", "-34,99"],
-	]
-	for m in ["09", "10", "11"]:
-		for t in spend:
-			if m == "11" and int(t[0]) > 17:
-				continue
-			var amt: String = t[2]
-			lines.append("%s/%s/2026;%s;%s" % [t[0], m, t[1].replace("%s", m), amt])
-	var rows: Array = Spending.parse("\n".join(lines))["rows"]
-	var txs := []
-	var n := 0
-	for r in Spending.keyed(rows):
-		txs.append({"id": "t%d" % n, "date": r["date"], "amount_cents": r["amount_cents"], "label": r["label"], "bank": "Boursorama", "key": r["key"], "category": Spending.guess_category(r["label"], r["amount_cents"], {})})
-		n += 1
-	d["spending"] = {"transactions": txs, "rules": {}}
-	return d
-
-
-const StoreScript = preload("res://src/core/store.gd")
+	return SampleData.build("2026-11-18")

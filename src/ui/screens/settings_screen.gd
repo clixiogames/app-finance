@@ -1,5 +1,5 @@
 extends Screen
-## Preferences, backup (export / import), price relay and about.
+## Preferences, security, backup, live prices and about.
 
 func title() -> String:
 	return "Settings"
@@ -31,6 +31,34 @@ func refresh() -> void:
 	pb.add_child(Ui.kv("Currency", cur))
 	add_child(pref)
 
+	# Prices
+	var pr := Ui.card(10)
+	var prb := Ui.body(pr)
+	var ph := Ui.hbox()
+	ph.add_child(Ui.expand(Ui.label("Live prices", "Strong")))
+	ph.add_child(Ui.label("Connected" if PriceService.has_key() else "Not set up", "Accent" if PriceService.has_key() else "Muted"))
+	prb.add_child(ph)
+	prb.add_child(Ui.label("Funds, ETFs & stocks: Alpha Vantage (your free personal key). Crypto: CoinGecko. Exchange rates: European Central Bank. End-of-day prices.", "Muted", true))
+	var upd: String = Store.setting("prices_updated", "")
+	prb.add_child(Ui.label("Last update: " + (Dates.pretty(upd.substr(0, 10)) if upd != "" else "never"), "Faint"))
+	var prow := Ui.hbox()
+	prow.add_child(Ui.expand(Ui.button("Set up" if not PriceService.has_key() else "Manage key", "Primary" if not PriceService.has_key() else "", func(): app.push(preload("res://src/ui/screens/price_setup_screen.gd").new()))))
+	prow.add_child(Ui.expand(Ui.button("Update now", "", func(): PriceService.refresh_all(true))))
+	prb.add_child(prow)
+	add_child(pr)
+
+	# Security
+	var sec := Ui.card(8)
+	var secb := Ui.body(sec)
+	var sh := Ui.hbox()
+	sh.add_child(Ui.expand(Ui.label("App lock (PIN)", "Strong")))
+	var locked := str(Store.setting("pin_hash", "")) != ""
+	sh.add_child(Ui.label("On" if locked else "Off", "Accent" if locked else "Muted"))
+	secb.add_child(sh)
+	secb.add_child(Ui.label("Ask for a PIN when the app opens.", "Muted", true))
+	secb.add_child(Ui.button("Change or turn off" if locked else "Turn on", "", func(): app.push(preload("res://src/ui/screens/pin_setup_screen.gd").new())))
+	add_child(sec)
+
 	# Backup
 	var bk := Ui.card(10)
 	var bb := Ui.body(bk)
@@ -51,28 +79,14 @@ func refresh() -> void:
 	bb.add_child(row2)
 	add_child(bk)
 
-	# Prices
-	var pr := Ui.card(10)
-	var prb := Ui.body(pr)
-	prb.add_child(Ui.label("Prices", "Strong"))
-	prb.add_child(Ui.label("Funds, ETFs & stocks: Yahoo Finance public data. Crypto: CoinGecko. Exchange rates: European Central Bank. Prices are end-of-day and may be delayed.", "Muted", true))
-	var upd: String = Store.setting("prices_updated", "")
-	prb.add_child(Ui.label("Last update: " + (Dates.pretty(upd.substr(0, 10)) if upd != "" else "never"), "Faint"))
-	prb.add_child(Ui.button("Update prices now", "", func(): PriceService.refresh_all()))
-	if OS.has_feature("web") or Store.setting("relay_url", "") != "":
-		var relay := Ui.line_edit("https://…workers.dev", Store.setting("relay_url", ""))
-		relay.text_submitted.connect(func(t):
-			Store.set_setting("relay_url", t.strip_edges())
-			app.toast("Relay saved"))
-		prb.add_child(Ui.field("Price relay (website only)", relay, "Browsers block finance sites; the relay passes price requests through. Press Enter to save."))
-	add_child(pr)
-
 	# About
 	var ab := Ui.card(8)
 	var abb := Ui.body(ab)
 	abb.add_child(Ui.label("About", "Strong"))
 	abb.add_child(Ui.kv("Version", str(ProjectSettings.get_setting("application/config/version", "0.1.0"))))
 	abb.add_child(Ui.label("APP FINANCE shows and organises your own data. It does not give investment advice and never moves money. Interest on savings accounts is an estimate.", "Muted", true))
+	abb.add_child(Ui.label("Data sources: Alpha Vantage · OpenFIGI · CoinGecko (crypto prices) · European Central Bank via Frankfurter (exchange rates).", "Faint", true))
+	abb.add_child(Ui.button("Privacy policy", "Ghost", func(): OS.shell_open("https://clixiogames.github.io/app-finance/privacy.html")))
 	abb.add_child(Ui.button("Delete all my data", "Danger", func():
 		app.confirm("Delete everything?", "All accounts, holdings and history on this device will be erased. Save a backup first if you may need it. This cannot be undone.", "Delete everything", func():
 			Store.reset_all()

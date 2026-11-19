@@ -24,6 +24,44 @@ func refresh() -> void:
 		return
 	var t := p.totals()
 
+	if Store.setting("sample", false):
+		var sc := Ui.card(8)
+		var sb := Ui.body(sc)
+		sb.add_child(Ui.label("You're exploring sample data", "Strong"))
+		sb.add_child(Ui.label("Nothing here is real and the prices are made up. Look around, then start with your own money.", "Muted", true))
+		sb.add_child(Ui.button("Start with my own data", "Primary", func():
+			app.confirm("Remove the sample data?", "The example accounts, holdings and spending will be deleted.", "Start fresh", func():
+				var theme_mode: String = Store.setting("theme", "system")
+				Store.reset_all()
+				Store.set_setting("theme", theme_mode)
+				app.reload_theme())))
+		add_child(sc)
+
+	# Live prices not connected yet
+	var waiting := PriceService.waiting_for_key()
+	if waiting > 0:
+		var pc := Ui.card(8)
+		var pb := Ui.body(pc)
+		pb.add_child(Ui.label("Turn on live prices", "Strong"))
+		pb.add_child(Ui.label("%d holding%s shown at the amount you put in. Connect free price data to see real values — it takes about a minute." % [waiting, "s are" if waiting > 1 else " is"], "Muted", true))
+		pb.add_child(Ui.button("Set up live prices", "Primary", func(): app.push(preload("res://src/ui/screens/price_setup_screen.gd").new())))
+		add_child(pc)
+
+	# Backup reminder (data lives only on this device)
+	var last_bk: String = Store.setting("last_backup", "")
+	if not Store.data["movements"].is_empty() and not Store.setting("sample", false) and (last_bk == "" or last_bk < Dates.add_days(Dates.today(), -30)):
+		var bc := Ui.card(8)
+		var bb := Ui.body(bc)
+		bb.add_child(Ui.label("Back up your data", "Strong"))
+		bb.add_child(Ui.label("Everything is stored only on this device. Save a backup file now and then (for example to Google Drive).", "Muted", true))
+		bb.add_child(Ui.button("Save a backup", "", func():
+			Files.save_text(Store.export_json(), "app-finance-backup-%s.json" % Dates.today(), func(ok: bool, msg: String):
+				if ok:
+					Store.mark_backup_done()
+					refresh()
+				app.toast(msg))))
+		add_child(bc)
+
 	# Hero
 	var hero := Ui.card(4)
 	var hb := Ui.body(hero)
@@ -37,6 +75,9 @@ func refresh() -> void:
 	hb.add_child(row)
 	hb.add_child(Ui.spacer(6))
 	hb.add_child(Ui.kv("Money invested", Money.fmt(t["invested"], cur)))
+	var ar := p.annual_return()
+	if ar["ok"]:
+		hb.add_child(Ui.kv("Annual return since %s" % Dates.month_label(Dates.month_key(ar["since"])), Money.pct(ar["bps"], 10000) + " / yr", Ui.gain_variation(ar["bps"])))
 	if t["debts"] < 0:
 		hb.add_child(Ui.kv("Assets", Money.fmt(t["assets"], cur)))
 		hb.add_child(Ui.kv("Debts", Money.fmt(t["debts"], cur)))
@@ -140,6 +181,8 @@ func refresh() -> void:
 	rb.disabled = PriceService.busy
 	fh.add_child(rb)
 	foot.add_child(fh)
+	if t["stale"] > 0:
+		foot.add_child(Ui.label("%d price(s) are more than a week old." % t["stale"], "Faint", true))
 	if t["missing"] > 0:
 		foot.add_child(Ui.label("%d holding(s) have no price yet — shown at the amount invested." % t["missing"], "Faint", true))
 	if PriceService.last_error != "":

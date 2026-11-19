@@ -53,15 +53,17 @@ jobs:
           curl -sSL -o godot.zip "$GODOT_URL/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
           unzip -q godot.zip && sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
       - name: Fetch live prices through the app's own code
+        env:
+          AV_KEY: ${{ secrets.AV_KEY }}
         run: |
           godot --headless --path . --import || true
-          timeout 120 godot --headless --path . res://tests/live_prices.tscn
+          timeout 300 godot --headless --path . res://tests/live_prices.tscn
       - name: Check which sources allow browser requests (CORS)
         run: |
           check() { echo "== $1"; curl -s -o /dev/null -D - -H "Origin: https://clixiogames.github.io" "$2" | grep -i -E "^HTTP|access-control-allow-origin" || true; }
           check CoinGecko "https://api.coingecko.com/api/v3/search?query=bitcoin"
           check Frankfurter "https://api.frankfurter.dev/v1/latest?from=USD&to=EUR"
-          check Yahoo "https://query2.finance.yahoo.com/v8/finance/chart/CW8.PA?range=5d&interval=1d"
+          check "Alpha Vantage" "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo"
 
   web:
     needs: test

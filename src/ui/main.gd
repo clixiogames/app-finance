@@ -28,6 +28,11 @@ var current_tab := "overview"
 var _top_inset := 0.0
 var _bottom_inset := 0.0
 var _refresh_queued := false
+var _kb_px := 0
+var _away_since := -1.0
+var lock_layer: Control
+const LockScreen = preload("res://src/ui/lock_screen.gd")
+const RELOCK_AFTER_S := 60.0
 
 
 func _ready() -> void:
@@ -37,12 +42,72 @@ func _ready() -> void:
 	Store.changed.connect(_on_data_changed)
 	PriceService.status_changed.connect(func(t): toast(t))
 	get_viewport().size_changed.connect(_layout)
+	get_viewport().gui_focus_changed.connect(_on_focus_changed)
 	_layout()
 	if not Store.setting("onboarded", false):
 		_set_root(OnboardingScreen.new())
 	else:
 		switch_tab("overview")
 		_auto_refresh_prices()
+	lock_if_needed()
+
+
+# ---------------- app lock ----------------
+
+func lock_if_needed() -> void:
+	if str(Store.setting("pin_hash", "")) == "" or (lock_layer and is_instance_valid(lock_layer)):
+		return
+	lock_layer = LockScreen.new()
+	lock_layer.app = self
+	add_child(lock_layer)
+
+
+func unlock() -> void:
+	if lock_layer and is_instance_valid(lock_layer):
+		lock_layer.queue_free()
+	lock_layer = null
+
+
+# ---------------- on-screen keyboard ----------------
+
+## Keeps the field being typed in visible above the phone's keyboard.
+func _process(_delta: float) -> void:
+	if not (OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")):
+		return
+	var kb := DisplayServer.virtual_keyboard_get_height()
+	if kb != _kb_px:
+		_kb_px = kb
+		_apply_keyboard()
+
+
+func _keyboard_in_view_units() -> float:
+	if _kb_px <= 0:
+		return 0.0
+	var win := Vector2(DisplayServer.window_get_size())
+	if win.y <= 0:
+		return 0.0
+	return float(_kb_px) * get_viewport_rect().size.y / win.y
+
+
+func _apply_keyboard() -> void:
+	var kb_v := _keyboard_in_view_units()
+	body_margin.add_theme_constant_override("margin_bottom", 28 + int(kb_v))
+	var s := current()
+	tabbar.visible = kb_v <= 0 and stack.size() == 1 and not (s is OnboardingScreen)
+	_reveal_focus()
+
+
+func _on_focus_changed(c: Control) -> void:
+	if c is LineEdit and _kb_px > 0:
+		_reveal_focus()
+
+
+func _reveal_focus() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var f := get_viewport().gui_get_focus_owner()
+	if f and is_instance_valid(f) and scroll.is_ancestor_of(f):
+		scroll.ensure_control_visible(f)
 
 
 func _apply_theme() -> void:
@@ -63,7 +128,11 @@ func reload_theme() -> void:
 	_layout()
 	var root_tab := current_tab
 	stack.clear()
-	switch_tab(root_tab)
+	lock_layer = null
+	if not Store.setting("onboarded", false):
+		_set_root(OnboardingScreen.new())
+	else:
+		switch_tab(root_tab)
 
 
 func _build_shell() -> void:
@@ -280,14 +349,24 @@ func _auto_refresh_prices() -> void:
 	var last: String = Store.setting("prices_updated", "")
 	var has_market := false
 	for h in Store.data["holdings"]:
-		if h.get("price_key", "") != "":
+		var k: String = str(h.get("price_key", ""))
+		if k.begins_with("av:") or k.begins_with("cg:"):
 			has_market = true
 	if has_market and (last == "" or last.substr(0, 10) < Dates.today()):
 		PriceService.refresh_all()
 
 
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		_away_since = Time.get_ticks_msec() / 1000.0
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN or what == NOTIFICATION_APPLICATION_RESUMED:
+		if _away_since >= 0 and Time.get_ticks_msec() / 1000.0 - _away_since > RELOCK_AFTER_S:
+			lock_if_needed()
+		_away_since = -1.0
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		if lock_layer and is_instance_valid(lock_layer):
+			get_tree().quit()
+			return
 		if not overlay.get_children().is_empty():
 			_close_overlay()
 		elif stack.size() > 1:
