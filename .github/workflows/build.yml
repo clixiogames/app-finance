@@ -35,6 +35,29 @@ jobs:
       - name: Check the app starts without errors
         run: timeout 60 godot --headless --path . --quit-after 120 2>&1 | tee run.log; ! grep -q "SCRIPT ERROR" run.log
 
+  live-prices:
+    # Checks the real price sources still answer in the format the app expects.
+    # Informational: a failure here does not block the builds.
+    needs: test
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Godot
+        run: |
+          curl -sSL -o godot.zip "$GODOT_URL/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip && sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+      - name: Fetch live prices through the app's own code
+        run: |
+          godot --headless --path . --import || true
+          timeout 120 godot --headless --path . res://tests/live_prices.tscn
+      - name: Check which sources allow browser requests (CORS)
+        run: |
+          check() { echo "== $1"; curl -s -o /dev/null -D - -H "Origin: https://clixiogames.github.io" "$2" | grep -i -E "^HTTP|access-control-allow-origin" || true; }
+          check CoinGecko "https://api.coingecko.com/api/v3/search?query=bitcoin"
+          check Frankfurter "https://api.frankfurter.dev/v1/latest?from=USD&to=EUR"
+          check Yahoo "https://query2.finance.yahoo.com/v8/finance/chart/CW8.PA?range=5d&interval=1d"
+
   web:
     needs: test
     runs-on: ubuntu-latest
@@ -78,6 +101,7 @@ jobs:
   android:
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -112,16 +136,14 @@ jobs:
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
           EOF
-          godot --headless --path . --import || true
-          godot --headless --path . --install-android-build-template
-          ls android/build | head
+          timeout 300 godot --headless --path . --import || true
       - name: Export Android test APK (installable directly)
         run: |
           mkdir -p build/android
           sed -i "s/^version\/code=.*/version\/code=${GITHUB_RUN_NUMBER}/" export_presets.cfg
           cp export_presets.cfg /tmp/presets_release.cfg
           sed -i 's/^gradle_build\/export_format=1/gradle_build\/export_format=0/' export_presets.cfg
-          godot --headless --path . --export-debug "Android" build/android/app-finance-test.apk
+          timeout 1500 godot --headless --path . --install-android-build-template --export-debug "Android" build/android/app-finance-test.apk
           cp /tmp/presets_release.cfg export_presets.cfg
       - name: Restore upload key
         env:
@@ -138,7 +160,7 @@ jobs:
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           export GODOT_ANDROID_KEYSTORE_RELEASE_PATH="$HOME/upload.keystore"
-          godot --headless --path . --export-release "Android" build/android/app-finance.aab
+          timeout 1500 godot --headless --path . --export-release "Android" build/android/app-finance.aab
       - uses: actions/upload-artifact@v5
         with:
           name: android

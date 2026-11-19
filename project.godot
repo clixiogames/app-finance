@@ -12,6 +12,11 @@ run/main_scene="res://src/ui/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 run/low_processor_mode=true
 config/icon="res://assets/icon.svg"
+boot_splash/bg_color=Color(0.968627, 0.968627, 0.960784, 1)
+boot_splash/show_image=true
+boot_splash/image="res://assets/icon-192.png"
+boot_splash/fullsize=false
+boot_splash/use_filter=true
 
 [autoload]
 
