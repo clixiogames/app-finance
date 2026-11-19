@@ -1,0 +1,32 @@
+name: Probe data source
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deutsche Börse Public Dataset (Xetra)
+        run: |
+          set -x
+          aws --version
+          aws s3 ls s3://deutsche-boerse-xetra-pds/ --no-sign-request | tail -5
+          LAST=$(aws s3 ls s3://deutsche-boerse-xetra-pds/ --no-sign-request | awk '{print $2}' | sort | tail -1)
+          echo "Last folder: $LAST"
+          aws s3 ls s3://deutsche-boerse-xetra-pds/$LAST --no-sign-request | head -30
+          aws s3 ls s3://deutsche-boerse-xetra-pds/ --no-sign-request | head -3
+          aws s3 ls s3://deutsche-boerse-xetra-pds/ --no-sign-request | wc -l
+          mkdir d && aws s3 cp s3://deutsche-boerse-xetra-pds/$LAST d/ --recursive --no-sign-request --quiet
+          ls -la d | head -40
+          du -sh d
+          F=$(ls d/*.csv | sort | tail -3 | head -1)
+          head -3 "$F"
+          cat d/*.csv | grep -v '^ISIN' | cut -d, -f1 | sort -u | wc -l
+          cat d/*.csv | grep -v '^ISIN' | cut -d, -f5 | sort | uniq -c | sort -rn | head
+          grep -h "IE00B4L5Y983\|LU1681043599\|FR0010315770\|US0378331005\|DE0007164600" d/*.csv | tail -8
+      - name: Older day size
+        run: |
+          aws s3 ls s3://deutsche-boerse-xetra-pds/2019-03-05/ --no-sign-request --summarize | tail -3
+      - name: CORS on GitHub Pages
+        run: curl -s -D - -o /dev/null -H "Origin: https://example.org" https://clixiogames.github.io/app-finance/privacy.html | grep -i -E "^HTTP|access-control"
