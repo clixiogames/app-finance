@@ -46,6 +46,7 @@ static func default_data() -> Dictionary:
 		"prices": {},
 		"fx": {},
 		"spending": {"transactions": [], "rules": {}},
+		"recurring": [],
 	}
 
 
@@ -108,6 +109,9 @@ static func migrate(d: Dictionary) -> Dictionary:
 			out["spending"][k] = [] if k == "transactions" else {}
 	for t in out["spending"]["transactions"]:
 		t["amount_cents"] = int(t.get("amount_cents", 0))
+	for r in out["recurring"]:
+		r["amount_cents"] = int(r.get("amount_cents", 0))
+		r["day"] = int(r.get("day", 1))
 	# v3: Yahoo symbols -> Alpha Vantage symbols; relay removed.
 	out["settings"].erase("relay_url")
 	for h in out["holdings"]:
@@ -238,6 +242,7 @@ func update_holding(hid: String, fields: Dictionary) -> void:
 
 
 func _delete_holding_no_commit(hid: String) -> void:
+	data["recurring"] = data["recurring"].filter(func(r): return r.get("holding_id", "") != hid)
 	data["movements"] = data["movements"].filter(func(m): return m["holding_id"] != hid)
 	data["holdings"] = data["holdings"].filter(func(h): return h["id"] != hid)
 
@@ -290,6 +295,69 @@ func merge_fx(currency: String, points: Dictionary) -> void:
 	data["fx"][currency]["updated"] = now_iso()
 	for dt in points:
 		data["fx"][currency]["points"][dt] = int(points[dt])
+
+
+# ---------- recurring entries (e.g. 400 € into the PEA every month) ----------
+
+## rule: {holding_id, kind, amount_cents, day (1-28), start (date), last (date or "")}
+func add_recurring(fields: Dictionary) -> String:
+	var r := fields.duplicate()
+	r["id"] = new_id()
+	r["day"] = clampi(int(r.get("day", 1)), 1, 28)
+	r["last"] = str(r.get("last", ""))
+	data["recurring"].append(r)
+	apply_recurring(false)
+	commit()
+	return r["id"]
+
+
+func delete_recurring(rid: String) -> void:
+	data["recurring"] = data["recurring"].filter(func(r): return r["id"] != rid)
+	commit()
+
+
+## Next date a rule is due after `after` (exclusive), or its start date.
+static func next_due(rule: Dictionary, after: String) -> String:
+	var start: String = rule["start"]
+	var day: int = int(rule["day"])
+	if after == "" or after < start:
+		return start
+	var key := Dates.month_key_add(Dates.month_key(after), 0)
+	var candidate := "%s-%02d" % [key, day]
+	if candidate <= after:
+		candidate = "%s-%02d" % [Dates.month_key_add(key, 1), day]
+	return candidate
+
+
+## Adds every repeated entry that has fallen due up to today. Returns how many were added.
+func apply_recurring(save_now: bool = true) -> int:
+	var today := Dates.today()
+	var added := 0
+	var holding_ids := {}
+	for h in data["holdings"]:
+		holding_ids[h["id"]] = true
+	for r in data["recurring"]:
+		if not holding_ids.has(r.get("holding_id", "")):
+			continue
+		var due := next_due(r, str(r.get("last", "")))
+		var guard := 0
+		while due <= today and guard < 600:
+			guard += 1
+			data["movements"].append({
+				"id": new_id() + str(added), "created": now_iso(), "holding_id": r["holding_id"],
+				"kind": r.get("kind", "deposit"), "date": due, "amount_cents": int(r["amount_cents"]),
+				"fee_cents": 0, "units_6": null, "price_4": null, "note": "Repeats monthly", "recurring_id": r["id"],
+			})
+			r["last"] = due
+			added += 1
+			due = next_due(r, due)
+	if added > 0 and save_now:
+		commit()
+	return added
+
+
+func recurring_for(hid: String) -> Array:
+	return data["recurring"].filter(func(r): return r.get("holding_id", "") == hid)
 
 
 # ---------- spending (separate from wealth) ----------

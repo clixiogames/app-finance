@@ -47,8 +47,11 @@ func _ready() -> void:
 	if not Store.setting("onboarded", false):
 		_set_root(OnboardingScreen.new())
 	else:
+		var added := Store.apply_recurring()
 		switch_tab("overview")
 		_auto_refresh_prices()
+		if added > 0:
+			toast("%d monthly entr%s added" % [added, "ies" if added > 1 else "y"])
 	lock_if_needed()
 
 

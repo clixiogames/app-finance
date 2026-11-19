@@ -102,6 +102,18 @@ func _ready() -> void:
 	check(Store.transactions().size() == 3, "import restores spending")
 	check(Store.import_json("{\"x\":1}") != "", "rejects foreign file")
 
+	# Monthly repeat: one entry dated in the past fills in the months up to today
+	var hid2: String = Store.data["holdings"][0]["id"]
+	var before: int = Store.data["movements"].size()
+	Store.add_movement({"holding_id": hid2, "kind": "deposit", "date": "2026-06-10", "amount_cents": 10000})
+	Store.add_recurring({"holding_id": hid2, "kind": "deposit", "amount_cents": 10000, "day": 10, "start": "2026-06-10", "last": "2026-06-10"})
+	check(Store.data["movements"].size() - before == 6, "June entry + July..Nov repeats (got %d)" % (Store.data["movements"].size() - before))
+	check(Store.apply_recurring() == 0, "nothing more due today")
+	main.push(preload("res://src/ui/screens/holding_screen.gd").new(hid2))
+	await _frames()
+	Store.delete_recurring(Store.data["recurring"][0]["id"])
+	check(Store.data["recurring"].is_empty(), "repeat stopped")
+
 	# Device-only settings never go into backups
 	Store.data["settings"]["av_key"] = "ABCDEF1234567890"
 	var exported := Store.export_json()

@@ -32,6 +32,7 @@ func _init() -> void:
 	test_portfolio_interest_and_manual()
 	test_savings()
 	test_annual_return()
+	test_recurring()
 	test_parsers()
 	test_migration()
 	test_spending()
@@ -207,6 +208,13 @@ func test_annual_return() -> void:
 	check(not Portfolio.new(d).annual_return("m", "2025-02-01")["ok"], "too short period not annualised")
 	var s := Portfolio.new(d).holding_state(d["holdings"][0], "2026-01-01")
 	check(not s["closed"], "open holding")
+
+
+func test_recurring() -> void:
+	eq(StoreScript.next_due({"start": "2026-01-31", "day": 28}, ""), "2026-01-31", "first due is start")
+	eq(StoreScript.next_due({"start": "2026-01-31", "day": 28}, "2026-01-31"), "2026-02-28", "day capped at 28")
+	eq(StoreScript.next_due({"start": "2026-01-05", "day": 5}, "2026-11-05"), "2026-12-05", "next month")
+	eq(StoreScript.next_due({"start": "2026-01-05", "day": 5}, "2026-12-05"), "2027-01-05", "year rollover")
 
 
 func test_savings() -> void:
