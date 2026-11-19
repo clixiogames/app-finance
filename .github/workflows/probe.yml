@@ -29,4 +29,5 @@ jobs:
         run: |
           aws s3 ls s3://deutsche-boerse-xetra-pds/2019-03-05/ --no-sign-request --summarize | tail -3
       - name: CORS on GitHub Pages
-        run: curl -s -D - -o /dev/null -H "Origin: https://example.org" https://clixiogames.github.io/app-finance/privacy.html | grep -i -E "^HTTP|access-control"
+        run: |
+          curl -s -D - -o /dev/null -H "Origin: https://example.org" https://clixiogames.github.io/app-finance/privacy.html | grep -i -E "^HTTP|access-control"
