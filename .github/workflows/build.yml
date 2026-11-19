@@ -140,13 +140,19 @@ jobs:
           EOF
           timeout 300 godot --headless --path . --import || true
       - name: Export Android test APK (installable directly)
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: android
         run: |
+          # Release build (small and fast) signed with a throwaway test key, 64-bit phones only.
+          export GODOT_ANDROID_KEYSTORE_RELEASE_PATH="$HOME/debug.keystore"
           mkdir -p build/android
           sed -i "s/^version\/code=.*/version\/code=${GITHUB_RUN_NUMBER}/" export_presets.cfg
           cp export_presets.cfg /tmp/presets_release.cfg
-          sed -i 's/^gradle_build\/export_format=1/gradle_build\/export_format=0/' export_presets.cfg
-          timeout 1500 godot --headless --path . --install-android-build-template --export-debug "Android" build/android/app-finance-test.apk
+          sed -i 's/^gradle_build\/export_format=1/gradle_build\/export_format=0/; s/^architectures\/armeabi-v7a=true/architectures\/armeabi-v7a=false/' export_presets.cfg
+          timeout 1500 godot --headless --path . --install-android-build-template --export-release "Android" build/android/app-finance-test.apk
           cp /tmp/presets_release.cfg export_presets.cfg
+          ls -la build/android
       - name: Restore upload key
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
