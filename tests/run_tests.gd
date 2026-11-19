@@ -33,6 +33,7 @@ func _init() -> void:
 	test_savings()
 	test_parsers()
 	test_migration()
+	test_spending()
 	print("Tests: %d passed, %d failed" % [passed, failed])
 	quit(1 if failed > 0 else 0)
 
@@ -235,6 +236,72 @@ func test_migration() -> void:
 	eq(m["settings"]["interest_mode"], "auto", "default filled")
 	eq(m["prices"]["k"]["points"]["2026-01-01"], 12, "price int")
 	check(m["holdings"] is Array, "missing lists created")
+
+
+func test_spending() -> void:
+	eq(Spending.merchant_key("PAIEMENT PAR CARTE X1234 CARREFOUR CITY 12/11"), "CARREFOUR CITY", "merchant key card")
+	eq(Spending.merchant_key("PRLV SEPA NETFLIX.COM 123456789"), "NETFLIX.COM", "merchant key direct debit")
+	eq(Spending.guess_category("CB CARREFOUR CITY 12/11", -2350, {}), "groceries", "groceries")
+	eq(Spending.guess_category("CB UBER EATS PARIS", -1890, {}), "restaurants", "uber eats is food")
+	eq(Spending.guess_category("UBER *TRIP", -1200, {}), "transport", "uber ride")
+	eq(Spending.guess_category("VIR SEPA RECU SALAIRE NOVEMBRE ACME", 280000, {}), "salary", "salary")
+	eq(Spending.guess_category("VIR SEPA RECU DE PAUL DUPONT", 5000, {}), "other_income", "incoming transfer from person")
+	eq(Spending.guess_category("VIR SEPA VERS LIVRET A", -20000, {}), "transfer", "transfer to savings")
+	eq(Spending.guess_category("RETRAIT DAB 12/11 PARIS", -4000, {}), "cash", "cash")
+	eq(Spending.guess_category("CB BOULANGERIE MARIE", -450, {"BOULANGERIE MARIE": "groceries"}), "groceries", "learned rule wins")
+	eq(Spending.guess_category("SOMETHING UNKNOWN", -999, {}), "other", "unknown expense")
+	# Boursorama-style CSV
+	var bourso := "dateOp;dateVal;label;category;categoryParent;supplierFound;amount;comment;accountNum;accountLabel;accountbalance\n2026-11-03;2026-11-03;\"CARTE 02/11/26 CARREFOUR CITY CB*1234\";\"Alimentation\";\"Vie quotidienne\";\"carrefour\";-23,50;;0001;Compte;1000,00\n2026-11-01;2026-11-01;\"VIR SEPA RECU SALAIRE\";\"Salaires\";\"Revenus\";\"\";2800,00;;0001;Compte;1023,50\n"
+	var r := Spending.parse(bourso)
+	check(r["ok"], "bourso csv ok")
+	eq(r["rows"].size(), 2, "bourso rows")
+	eq(r["rows"][0]["amount_cents"], -2350, "bourso amount")
+	eq(r["rows"][0]["date"], "2026-11-03", "bourso date")
+	# Crédit Agricole-style: preamble lines, Débit/Crédit columns, French dates
+	var ca := "Téléchargement du 18/11/2026;\nCompte de Dépôt n° 123;\n\nDate;Libellé;Débit euros;Crédit euros;\n05/11/2026;\"PRLV SEPA EDF\";82,40;;\n04/11/2026;\"VIREMENT EN VOTRE FAVEUR\";;150,00;\n"
+	var r2 := Spending.parse(ca)
+	check(r2["ok"], "ca csv ok")
+	eq(r2["rows"].size(), 2, "ca rows")
+	eq(r2["rows"][0]["amount_cents"], -8240, "ca debit negative")
+	eq(r2["rows"][1]["amount_cents"], 15000, "ca credit positive")
+	eq(r2["rows"][0]["date"], "2026-11-05", "ca date")
+	# English comma CSV with quotes and thousands
+	var en := "Date,Description,Amount\n2026-11-10,\"AMAZON, MARKETPLACE\",\"-1,234.56\"\n"
+	var r3 := Spending.parse(en)
+	eq(r3["rows"][0]["amount_cents"], -123456, "english amount")
+	eq(r3["rows"][0]["label"], "AMAZON, MARKETPLACE", "quoted comma label")
+	# OFX
+	var ofx := "<OFX><BANKTRANLIST><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261112<TRNAMT>-12.90<NAME>NETFLIX.COM</STMTTRN><STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20261101120000<TRNAMT>2800.00<NAME>SALAIRE</STMTTRN></BANKTRANLIST></OFX>"
+	var r4 := Spending.parse(ofx)
+	eq(r4["rows"].size(), 2, "ofx rows")
+	eq(r4["rows"][0]["amount_cents"], -1290, "ofx amount")
+	eq(r4["rows"][1]["date"], "2026-11-01", "ofx date with time")
+	check(not Spending.parse("hello\nworld")["ok"], "garbage rejected")
+	# Latin-1 decoding
+	var latin := PackedByteArray([0x44, 0xE9, 0x62, 0x69, 0x74])  # "Débit" in Latin-1
+	eq(Spending.decode(latin), "Débit", "latin-1 decode")
+	# Duplicates: two identical coffees count twice; reimport adds nothing
+	var rows := [
+		{"date": "2026-11-02", "label": "CAFE", "amount_cents": -250},
+		{"date": "2026-11-02", "label": "CAFE", "amount_cents": -250},
+	]
+	var k := Spending.keyed(rows)
+	check(k[0]["key"] != k[1]["key"], "same-day duplicates kept apart")
+	eq(Spending.keyed(rows)[1]["key"], k[1]["key"], "keys are stable")
+	# Summary
+	var txs := [
+		{"date": "2026-11-01", "amount_cents": 280000, "category": "salary"},
+		{"date": "2026-11-03", "amount_cents": -2350, "category": "groceries"},
+		{"date": "2026-11-05", "amount_cents": -20000, "category": "transfer"},
+		{"date": "2026-10-05", "amount_cents": -1000, "category": "other"},
+	]
+	var sm := Spending.month_summary(txs, "2026-11")
+	eq(sm["income"], 280000, "month income")
+	eq(sm["expenses"], -2350, "month expenses exclude transfers")
+	eq(sm["net"], 277650, "month net")
+	eq(sm["transfers"], -20000, "transfers tracked separately")
+	var tr := Spending.trend(txs, 2, "2026-11")
+	eq(tr[0]["expenses"], -1000, "trend previous month")
 
 
 const StoreScript = preload("res://src/core/store.gd")

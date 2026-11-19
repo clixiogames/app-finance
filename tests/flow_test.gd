@@ -73,12 +73,33 @@ func _ready() -> void:
 	main.push(preload("res://src/ui/screens/income_screen.gd").new())
 	await _frames()
 
+	# Spending: import, re-import (no duplicates), learn a category
+	var csv := "Date;Libellé;Montant\n03/11/2026;CB CHEZ MARIE;-4,50\n04/11/2026;CB CHEZ MARIE;-3,20\n05/11/2026;PRLV SEPA NETFLIX.COM;-13,49\n"
+	var parsed := Spending.parse(csv)
+	var imp := Store.import_transactions(parsed["rows"], "Test bank")
+	check(imp["added"] == 3, "spending import adds 3")
+	check(Store.import_transactions(parsed["rows"], "Test bank")["added"] == 0, "re-import adds nothing")
+	var bread: Dictionary = Store.transactions()[0]
+	check(bread["category"] == "other", "unknown bakery starts as other")
+	var updated := Store.update_transaction(bread["id"], {"category": "groceries"}, true)
+	check(updated == 1, "learning updates the similar transaction")
+	check(Store.transactions()[1]["category"] == "groceries", "similar transaction recategorised")
+	check(Store.transactions()[2]["category"] == "subscriptions", "netflix auto-categorised")
+	check(Store.portfolio.totals()["value"] == 150050, "spending does not touch wealth")
+	main.switch_tab("spending")
+	await _frames()
+	main.push(preload("res://src/ui/screens/transaction_edit_screen.gd").new(bread["id"]))
+	await _frames()
+	main.push(preload("res://src/ui/screens/spending_import_screen.gd").new(parsed, "bourso.csv"))
+	await _frames()
+
 	# Backup round trip
 	var json := Store.export_json()
 	Store.reset_all()
 	check(Store.data["movements"].is_empty(), "reset clears data")
 	check(Store.import_json(json) == "", "import ok")
 	check(Store.data["movements"].size() == 2, "import restores movements")
+	check(Store.transactions().size() == 3, "import restores spending")
 	check(Store.import_json("{\"x\":1}") != "", "rejects foreign file")
 
 	print("Flow test: ", "OK" if failures == 0 else "%d failure(s)" % failures)

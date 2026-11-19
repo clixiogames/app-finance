@@ -4,7 +4,7 @@ extends Node
 
 signal changed
 
-const SCHEMA := 1
+const SCHEMA := 2
 const SAVE_PATH := "user://finance_data.json"
 const TMP_PATH := "user://finance_data.tmp"
 const BACKUP_PATH := "user://finance_data.prev.json"
@@ -39,6 +39,7 @@ static func default_data() -> Dictionary:
 		"income": {},
 		"prices": {},
 		"fx": {},
+		"spending": {"transactions": [], "rules": {}},
 	}
 
 
@@ -94,6 +95,13 @@ static func migrate(d: Dictionary) -> Dictionary:
 			var pts: Dictionary = out[store_key][key].get("points", {})
 			for dt in pts:
 				pts[dt] = int(pts[dt])
+	if not out["spending"] is Dictionary:
+		out["spending"] = {"transactions": [], "rules": {}}
+	for k in ["transactions", "rules"]:
+		if not out["spending"].has(k):
+			out["spending"][k] = [] if k == "transactions" else {}
+	for t in out["spending"]["transactions"]:
+		t["amount_cents"] = int(t.get("amount_cents", 0))
 	out["schema"] = SCHEMA
 	return out
 
@@ -263,6 +271,75 @@ func merge_fx(currency: String, points: Dictionary) -> void:
 	data["fx"][currency]["updated"] = now_iso()
 	for dt in points:
 		data["fx"][currency]["points"][dt] = int(points[dt])
+
+
+# ---------- spending (separate from wealth) ----------
+
+func transactions() -> Array:
+	return data["spending"]["transactions"]
+
+
+## rows: [{date, label, amount_cents}] from Spending.parse(). Skips ones already imported.
+func import_transactions(rows: Array, bank: String) -> Dictionary:
+	var existing := {}
+	for t in transactions():
+		existing[t.get("key", "")] = true
+	var rules: Dictionary = data["spending"]["rules"]
+	var added := 0
+	var dupes := 0
+	for r in Spending.keyed(rows):
+		if existing.has(r["key"]):
+			dupes += 1
+			continue
+		existing[r["key"]] = true
+		transactions().append({
+			"id": new_id() + str(added), "date": r["date"], "amount_cents": int(r["amount_cents"]),
+			"label": r["label"], "bank": bank, "key": r["key"],
+			"category": Spending.guess_category(r["label"], r["amount_cents"], rules),
+		})
+		added += 1
+	commit()
+	return {"added": added, "duplicates": dupes}
+
+
+func add_transaction(fields: Dictionary) -> String:
+	var t := fields.duplicate()
+	t["id"] = new_id()
+	t["key"] = "manual|" + t["id"]
+	transactions().append(t)
+	commit()
+	return t["id"]
+
+
+## Changes a transaction. With learn=true, the new category is remembered for this payee
+## and applied to its other transactions too. Returns how many others were updated.
+func update_transaction(tid: String, fields: Dictionary, learn: bool = false) -> int:
+	var changed := 0
+	var target := {}
+	for t in transactions():
+		if t["id"] == tid:
+			for k in fields:
+				t[k] = fields[k]
+			target = t
+	if learn and fields.has("category") and not target.is_empty():
+		var key := Spending.merchant_key(target["label"])
+		data["spending"]["rules"][key] = fields["category"]
+		for t in transactions():
+			if t["id"] != tid and Spending.merchant_key(t["label"]) == key and t.get("category", "") != fields["category"]:
+				t["category"] = fields["category"]
+				changed += 1
+	commit()
+	return changed
+
+
+func delete_transaction(tid: String) -> void:
+	data["spending"]["transactions"] = transactions().filter(func(t): return t["id"] != tid)
+	commit()
+
+
+func clear_spending() -> void:
+	data["spending"]["transactions"] = []
+	commit()
 
 
 # ---------- backup ----------

@@ -1,9 +1,6 @@
 extends Screen
 ## Preferences, backup (export / import), price relay and about.
 
-var _js_cb: JavaScriptObject
-
-
 func title() -> String:
 	return "Settings"
 
@@ -88,58 +85,15 @@ func _backup_name() -> String:
 
 
 func _export() -> void:
-	var text := Store.export_json()
-	if OS.has_feature("web"):
-		JavaScriptBridge.download_buffer(text.to_utf8_buffer(), _backup_name(), "application/json")
-		Store.mark_backup_done()
-		app.toast("Backup downloaded")
-		return
-	if DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE):
-		DisplayServer.file_dialog_show("Save backup", OS.get_system_dir(OS.SYSTEM_DIR_DOCUMENTS), _backup_name(), false,
-			DisplayServer.FILE_DIALOG_MODE_SAVE_FILE, PackedStringArray(["*.json"]),
-			func(ok: bool, paths: PackedStringArray, _f: int):
-				if not ok or paths.is_empty():
-					return
-				var f := FileAccess.open(paths[0], FileAccess.WRITE)
-				if f == null:
-					app.toast("Could not save the file")
-					return
-				f.store_string(text)
-				f.close()
-				Store.mark_backup_done()
-				app.toast("Backup saved"))
-	else:
-		var path := OS.get_user_data_dir().path_join(_backup_name())
-		var f := FileAccess.open(path, FileAccess.WRITE)
-		f.store_string(text)
-		f.close()
-		Store.mark_backup_done()
-		app.toast("Backup saved to " + path)
+	Files.save_text(Store.export_json(), _backup_name(), func(ok: bool, msg: String):
+		if ok:
+			Store.mark_backup_done()
+		app.toast(msg))
 
 
 func _import() -> void:
-	if OS.has_feature("web"):
-		_js_cb = JavaScriptBridge.create_callback(func(args):
-			_restore_text(str(args[0])))
-		var window := JavaScriptBridge.get_interface("window")
-		window.appFinanceOnFile = _js_cb
-		JavaScriptBridge.eval("""(function(){var i=document.createElement('input');i.type='file';i.accept='.json,application/json';
-			i.onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){window.appFinanceOnFile(r.result);};r.readAsText(f);};
-			i.click();})()""", true)
-		return
-	if DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE):
-		DisplayServer.file_dialog_show("Restore backup", OS.get_system_dir(OS.SYSTEM_DIR_DOCUMENTS), "", false,
-			DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, PackedStringArray(["*.json", "*"]),
-			func(ok: bool, paths: PackedStringArray, _f: int):
-				if not ok or paths.is_empty():
-					return
-				var f := FileAccess.open(paths[0], FileAccess.READ)
-				if f == null:
-					app.toast("Could not open the file")
-					return
-				_restore_text(f.get_as_text()))
-	else:
-		app.toast("Use “Paste backup” on this device")
+	Files.open_bytes(PackedStringArray(["*.json"]), func(bytes: PackedByteArray, _name: String):
+		_restore_text(bytes.get_string_from_utf8()), func(err: String): app.toast(err))
 
 
 func _paste_import() -> void:

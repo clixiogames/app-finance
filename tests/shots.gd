@@ -46,6 +46,17 @@ func _ready() -> void:
 	main.push(preload("res://src/ui/screens/holding_edit_screen.gd").new("", Store.data["accounts"][1]["id"]))
 	await _settle()
 	await shot("06_new_holding_livret")
+	main.switch_tab("spending")
+	await _settle()
+	await shot("09_spending")
+	main.scroll.scroll_vertical = 700
+	await _settle()
+	await shot("10_spending_list")
+	var csv := "Date;Libellé;Montant\n17/11/2026;CB MONOPRIX PARIS 15;-32,80\n16/11/2026;CB SNCF INTERNET;-45,00\n15/11/2026;PRLV SEPA SPOTIFY;-11,99\n"
+	main.push(preload("res://src/ui/screens/spending_import_screen.gd").new(Spending.parse(csv), "export-boursorama.csv"))
+	await _settle()
+	await shot("11_import_preview")
+	main.pop_to_root()
 	main.switch_tab("settings")
 	await _settle()
 	await shot("07_settings")
@@ -132,6 +143,28 @@ func sample_data() -> Dictionary:
 		m["created"] = m["id"]
 	d["movements"] = mv
 	d["income"] = {"2026-09": 310000}
+	var lines := ["Date;Libellé;Montant"]
+	var spend := [
+		["01", "VIR SEPA RECU SALAIRE ACME SAS", "2800,00"], ["02", "PRLV SEPA LOYER FONCIA", "-850,00"],
+		["03", "CB CARREFOUR CITY 03/%s", "-46,20"], ["04", "CB UBER EATS PARIS", "-23,90"],
+		["05", "PRLV SEPA EDF", "-62,00"], ["06", "CB NAVIGO", "-86,40"], ["07", "PRLV SEPA NETFLIX.COM", "-13,49"],
+		["08", "CB PHARMACIE DU CENTRE", "-18,30"], ["10", "CB LECLERC DRIVE", "-112,75"], ["12", "CB FNAC", "-59,99"],
+		["13", "RETRAIT DAB PARIS", "-40,00"], ["14", "CB RESTAURANT LE PETIT ZINC", "-38,00"],
+		["15", "VIR SEPA VERS LIVRET A", "-200,00"], ["16", "PRLV SEPA FREE MOBILE", "-19,99"], ["17", "CB DECATHLON", "-34,99"],
+	]
+	for m in ["09", "10", "11"]:
+		for t in spend:
+			if m == "11" and int(t[0]) > 17:
+				continue
+			var amt: String = t[2]
+			lines.append("%s/%s/2026;%s;%s" % [t[0], m, t[1].replace("%s", m), amt])
+	var rows: Array = Spending.parse("\n".join(lines))["rows"]
+	var txs := []
+	var n := 0
+	for r in Spending.keyed(rows):
+		txs.append({"id": "t%d" % n, "date": r["date"], "amount_cents": r["amount_cents"], "label": r["label"], "bank": "Boursorama", "key": r["key"], "category": Spending.guess_category(r["label"], r["amount_cents"], {})})
+		n += 1
+	d["spending"] = {"transactions": txs, "rules": {}}
 	return d
 
 

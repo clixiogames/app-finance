@@ -3,7 +3,7 @@
 All your savings and investments in one place — an Android app (Google Play) and an identical website.
 Built with **Godot 4.7.2**. Data stays on the device; no accounts, no servers, €0 to run.
 
-## What it does (v0.1 — Wealth)
+## What it does (v0.2)
 - Accounts (PEA, CTO, assurance vie, PER, livrets, crypto, property…) holding any type of asset:
   ETFs, funds, stocks, crypto, Livret A / LDDS / LEP, other savings, euro funds, property, loans.
 - Record money in/out as **amount + date**; units are computed from that day's **real price**
@@ -13,7 +13,7 @@ Built with **Godot 4.7.2**. Data stays on the device; no accounts, no servers, �
 - Overview: total wealth, gain/loss, value over time vs money invested, allocation by type/account,
   monthly savings and savings rate.
 - Backup: export/import a JSON file (or copy/paste as text).
-- Spending section (bank statements) — next milestone.
+- Spending (separate from Wealth): import bank statements (CSV from most French banks, OFX), automatic categories that learn from your corrections, monthly in/out, breakdown by category, 6-month trend.
 
 ## Price sources (free)
 | What | Source | Notes |
