@@ -155,6 +155,11 @@ func _ready() -> void:
 		await _frames()
 	main.push(preload("res://src/ui/screens/price_setup_screen.gd").new())
 	await _frames()
+	main.pop_to_root()
+	main.push(preload("res://src/ui/screens/report_screen.gd").new())
+	await _frames()
+	var rep: Dictionary = Store.portfolio.income_report(2026)
+	check(rep["interest"] > 0, "sample savings earn interest in report")
 
 	print("Flow test: ", "OK" if failures == 0 else "%d failure(s)" % failures)
 	get_tree().quit(1 if failures > 0 else 0)

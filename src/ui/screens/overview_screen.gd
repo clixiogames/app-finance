@@ -167,6 +167,24 @@ func refresh() -> void:
 		svb.add_child(Ui.label("Add your monthly income to see your savings rate.", "Faint", true))
 	add_child(sv)
 
+	# Dividends, interest & fees (this year)
+	var yr := Dates.year(Dates.today())
+	var rep := p.income_report(yr)
+	var inc_card := Ui.card(6)
+	var ib := Ui.body(inc_card)
+	var ih := Ui.hbox()
+	ih.add_child(Ui.expand(Ui.label("Dividends, interest & fees", "Strong")))
+	ih.add_child(Ui.button("Report", "Ghost", func(): app.push(preload("res://src/ui/screens/report_screen.gd").new())))
+	ib.add_child(ih)
+	var istats := Ui.hbox(12)
+	istats.add_child(_stat("Earned in %d" % yr, Money.fmt(rep["dividends"] + rep["interest"], cur, false, 0)))
+	istats.add_child(_stat("Fees", Money.fmt(rep["fees"], cur, false, 0)))
+	istats.add_child(_stat("Net", Money.fmt(rep["net"], cur, true, 0)))
+	ib.add_child(istats)
+	if rep["estimated"]:
+		ib.add_child(Ui.label("Includes estimated savings interest.", "Faint"))
+	add_child(inc_card)
+
 	# Footer: price freshness
 	var foot := Ui.vbox(4)
 	var upd: String = Store.setting("prices_updated", "")
