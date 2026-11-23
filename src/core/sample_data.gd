@@ -28,10 +28,10 @@ static func build(today: String = "") -> Dictionary:
 	d["settings"]["onboarded"] = true
 	d["settings"]["monthly_income_cents"] = 280000
 	d["accounts"] = [
-		{"id": "a_pea", "name": "PEA Boursorama", "kind": "pea", "institution": "Boursorama"},
-		{"id": "a_bank", "name": "Livrets", "kind": "bank_savings", "institution": "La Banque Postale"},
-		{"id": "a_av", "name": "Assurance vie Linxea", "kind": "assurance_vie", "institution": "Linxea"},
-		{"id": "a_crypto", "name": "Crypto", "kind": "crypto", "institution": "Kraken"},
+		{"id": "a_pea", "name": "PEA", "kind": "pea", "institution": "My online broker"},
+		{"id": "a_bank", "name": "Savings accounts", "kind": "bank_savings", "institution": "My bank"},
+		{"id": "a_av", "name": "Life insurance", "kind": "assurance_vie", "institution": "My insurer"},
+		{"id": "a_crypto", "name": "Crypto", "kind": "crypto", "institution": "My exchange"},
 	]
 	d["holdings"] = [
 		{"id": "h_world", "account_id": "a_pea", "name": "World stocks ETF (sample)", "type": "etf", "price_key": "sample:world", "currency": "EUR"},
@@ -87,7 +87,7 @@ static func build(today: String = "") -> Dictionary:
 	var txs := []
 	var n := 0
 	for r in Spending.keyed(rows):
-		txs.append({"id": "t%d" % n, "date": r["date"], "amount_cents": r["amount_cents"], "label": r["label"], "bank": "Boursorama", "key": r["key"], "category": Spending.guess_category(r["label"], r["amount_cents"], {})})
+		txs.append({"id": "t%d" % n, "date": r["date"], "amount_cents": r["amount_cents"], "label": r["label"], "bank": "My bank", "key": r["key"], "category": Spending.guess_category(r["label"], r["amount_cents"], {})})
 		n += 1
 	d["spending"] = {"transactions": txs, "rules": {}}
 	return d

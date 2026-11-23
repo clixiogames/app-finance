@@ -20,6 +20,12 @@ func _ready() -> void:
 		d["settings"]["theme"] = "dark"
 	else:
 		d["settings"]["theme"] = "light"
+	if "--store" in OS.get_cmdline_user_args():
+		d["settings"]["sample"] = false
+		d["settings"]["last_backup"] = Dates.today()
+		d["settings"]["prices_updated"] = Dates.today() + "T07:00:00Z"
+		for h in d["holdings"]:
+			h["name"] = str(h["name"]).replace(" (sample)", "")
 	Store.set_data(d, false)
 	main = load("res://src/ui/main.tscn").instantiate()
 	add_child(main)
