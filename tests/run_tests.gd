@@ -33,6 +33,7 @@ func _init() -> void:
 	test_savings()
 	test_annual_return()
 	test_recurring()
+	test_income_report()
 	test_parsers()
 	test_migration()
 	test_spending()
@@ -215,6 +216,34 @@ func test_recurring() -> void:
 	eq(StoreScript.next_due({"start": "2026-01-31", "day": 28}, "2026-01-31"), "2026-02-28", "day capped at 28")
 	eq(StoreScript.next_due({"start": "2026-01-05", "day": 5}, "2026-11-05"), "2026-12-05", "next month")
 	eq(StoreScript.next_due({"start": "2026-01-05", "day": 5}, "2026-12-05"), "2027-01-05", "year rollover")
+
+
+func test_income_report() -> void:
+	var d := _base_data()
+	d["holdings"].append({"id": "e", "account_id": "a1", "name": "ETF", "type": "etf", "price_key": "y:X", "currency": "EUR"})
+	d["holdings"].append({"id": "la", "account_id": "a1", "name": "Livret A", "type": "livret_a", "rate_source": "livret_a", "interest_mode": "auto"})
+	d["holdings"].append({"id": "sv", "account_id": "a1", "name": "Savings", "type": "savings", "rate_source": "fixed", "interest_mode": "manual"})
+	d["movements"].append({"id": "1", "holding_id": "e", "date": "2025-03-01", "kind": "deposit", "amount_cents": 100000, "fee_cents": 199, "units_6": 1000000, "price_4": 1000000})
+	d["movements"].append({"id": "2", "holding_id": "e", "date": "2025-06-01", "kind": "dividend", "amount_cents": 1500})
+	d["movements"].append({"id": "3", "holding_id": "e", "date": "2025-12-01", "kind": "fee", "amount_cents": 500})
+	d["movements"].append({"id": "4", "holding_id": "e", "date": "2026-06-01", "kind": "dividend", "amount_cents": 1700})
+	d["movements"].append({"id": "5", "holding_id": "la", "date": "2024-12-31", "kind": "deposit", "amount_cents": 1000000})
+	d["movements"].append({"id": "6", "holding_id": "sv", "date": "2025-01-10", "kind": "deposit", "amount_cents": 50000})
+	d["movements"].append({"id": "7", "holding_id": "sv", "date": "2025-12-31", "kind": "interest", "amount_cents": 1234})
+	var p := Portfolio.new(d)
+	var r := p.income_report(2025)
+	eq(r["dividends"], 1500, "2025 dividends")
+	eq(r["fees"], 699, "2025 fees incl. deposit fee")
+	# Livret A 2025: Jan 240 bps ×2 quinzaines... computed by the engine
+	var expected_la: int = InterestCalc.compute([d["movements"][4]], func(dt): return RegulatedRates.rate_bps("livret_a", dt), "2026-01-01")["credited"]
+	eq(r["interest"], expected_la + 1234, "2025 interest auto + manual")
+	check(r["estimated"], "auto interest flagged")
+	eq(r["net"], 1500 + expected_la + 1234 - 699, "2025 net")
+	check(not r["partial"], "2025 complete year")
+	var r26 := p.income_report(2026)
+	eq(r26["dividends"], 1700, "2026 dividends")
+	check(r26["partial"], "current year partial")
+	eq(p.report_years(), [2026, 2025, 2024], "years newest first")
 
 
 func test_savings() -> void:

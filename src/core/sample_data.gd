@@ -55,6 +55,10 @@ static func build(today: String = "") -> Dictionary:
 			mv.append({"id": "l%d" % i, "holding_id": "h_la", "date": key + "-02", "kind": "deposit", "amount_cents": 20000})
 		key = Dates.month_key_add(key, 1)
 		i += 1
+	mv.append({"id": "dv1", "holding_id": "h_em", "date": "2024-07-10", "kind": "dividend", "amount_cents": 1840})
+	mv.append({"id": "dv2", "holding_id": "h_em", "date": "2025-07-09", "kind": "dividend", "amount_cents": 2615})
+	mv.append({"id": "dv3", "holding_id": "h_em", "date": "2026-07-08", "kind": "dividend", "amount_cents": 3120})
+	mv.append({"id": "fe1", "holding_id": "h_euro", "date": "2025-12-31", "kind": "fee", "amount_cents": 650})
 	mv.append({"id": "la0", "holding_id": "h_la", "date": "2023-12-28", "kind": "deposit", "amount_cents": 500000})
 	mv.append({"id": "la1", "holding_id": "h_la", "date": "2025-07-20", "kind": "withdrawal", "amount_cents": 150000})
 	mv.append({"id": "ld0", "holding_id": "h_ldds", "date": "2024-03-10", "kind": "deposit", "amount_cents": 600000})

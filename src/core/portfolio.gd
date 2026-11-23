@@ -378,3 +378,71 @@ func monthly_savings(n: int = 12) -> Array:
 		var key := Dates.month_key_add(start_key, i)
 		out.append({"month": key, "saved": per.get(key, 0), "income": income_for(key)})
 	return out
+
+
+## Years that have any movement, newest first.
+func report_years() -> Array:
+	var first := first_date()
+	var out := []
+	if first == "":
+		return out
+	for y in range(Dates.year(Dates.today()), Dates.year(first) - 1, -1):
+		out.append(y)
+	return out
+
+
+## Interest earned in [from, to) by one holding (interest-type holdings, any mode).
+func _interest_between(h: Dictionary, from: String, to: String) -> Dictionary:
+	var mode: String = h.get("interest_mode", "auto")
+	var valuation: String = Catalog.holding_type(h.get("type", "other"))["valuation"]
+	if valuation == "interest" and mode == "auto":
+		var movs := movements(h["id"])
+		var a := InterestCalc.compute(movs.filter(func(m): return m["date"] < to), _rate_fn(h), to)
+		var b := InterestCalc.compute(movs.filter(func(m): return m["date"] < from), _rate_fn(h), from)
+		return {"amount": (a["credited"] + a["accrued"]) - (b["credited"] + b["accrued"]), "estimated": true}
+	if valuation == "interest" and mode == "none":
+		return {"amount": 0, "estimated": false}
+	var total := 0
+	for mv in movements(h["id"]):
+		if mv.get("kind", "") == "interest" and mv["date"] >= from and mv["date"] < to:
+			total += int(mv.get("amount_cents", 0))
+	return {"amount": total, "estimated": false}
+
+
+## What your money earned and cost in a calendar year.
+## Returns {dividends, interest, fees, net, estimated, rows: [{id, name, dividends, interest, fees, estimated}]}
+func income_report(year: int) -> Dictionary:
+	var from := Dates.make(year, 1, 1)
+	var to := Dates.make(year + 1, 1, 1)
+	var today_next := Dates.add_days(Dates.today(), 1)
+	if to > today_next:
+		to = today_next
+	var out := {"dividends": 0, "interest": 0, "fees": 0, "net": 0, "estimated": false, "rows": [], "partial": Dates.make(year + 1, 1, 1) > today_next}
+	for h in data.get("holdings", []):
+		if h.get("type", "") == "loan":
+			continue
+		var row := {"id": h["id"], "name": h.get("name", ""), "dividends": 0, "interest": 0, "fees": 0, "estimated": false}
+		for mv in movements(h["id"]):
+			if mv["date"] < from or mv["date"] >= to:
+				continue
+			match mv.get("kind", ""):
+				"dividend":
+					row["dividends"] += int(mv.get("amount_cents", 0))
+				"fee":
+					row["fees"] += int(mv.get("amount_cents", 0))
+				"deposit":
+					row["fees"] += int(mv.get("fee_cents", 0))
+		var it := _interest_between(h, from, to)
+		row["interest"] = it["amount"]
+		row["estimated"] = it["estimated"] and it["amount"] != 0
+		if row["dividends"] != 0 or row["interest"] != 0 or row["fees"] != 0:
+			out["rows"].append(row)
+			out["dividends"] += row["dividends"]
+			out["interest"] += row["interest"]
+			out["fees"] += row["fees"]
+			if row["estimated"]:
+				out["estimated"] = true
+	out["rows"].sort_custom(func(a, b): return (a["dividends"] + a["interest"] - a["fees"]) > (b["dividends"] + b["interest"] - b["fees"]))
+	out["net"] = out["dividends"] + out["interest"] - out["fees"]
+	return out
+
