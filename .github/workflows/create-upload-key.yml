@@ -1,0 +1,50 @@
+name: Create Google Play upload key (one time)
+
+# Creates the key that signs the app for Google Play and stores it ONLY as GitHub secrets.
+# Nobody sees it: not the owner, not Claude, not the logs.
+# Needs a temporary secret SETUP_TOKEN (fine-grained token allowed to write this repo's secrets).
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type CREATE to make the key (it will refuse if one already exists)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check request
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "CREATE" ]; then echo "Type CREATE to confirm."; exit 1; fi
+      - name: Refuse if a key already exists
+        env:
+          GH_TOKEN: ${{ secrets.SETUP_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "SETUP_TOKEN secret is missing."; exit 1; fi
+          if gh secret list -R "$GITHUB_REPOSITORY" | grep -q '^ANDROID_KEYSTORE_BASE64'; then
+            echo "An upload key already exists — nothing changed."; exit 1
+          fi
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Create key and store it as secrets
+        env:
+          GH_TOKEN: ${{ secrets.SETUP_TOKEN }}
+        run: |
+          set -e
+          PW=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32)
+          echo "::add-mask::$PW"
+          keytool -genkeypair -keystore upload.p12 -storetype PKCS12 -alias upload -keyalg RSA -keysize 2048 \
+            -validity 10000 -storepass "$PW" -keypass "$PW" -dname "CN=APP FINANCE, O=clixiogames, C=FR" > /dev/null 2>&1
+          base64 -w0 upload.p12 | gh secret set ANDROID_KEYSTORE_BASE64 -R "$GITHUB_REPOSITORY"
+          printf '%s' "upload" | gh secret set ANDROID_KEY_ALIAS -R "$GITHUB_REPOSITORY"
+          printf '%s' "$PW" | gh secret set ANDROID_KEYSTORE_PASSWORD -R "$GITHUB_REPOSITORY"
+          echo "Public fingerprint of the upload certificate (safe to share):"
+          keytool -list -v -keystore upload.p12 -storepass "$PW" | grep -E "SHA256:" | head -1
+          shred -u upload.p12
+          echo "Done. The upload key now exists only in this repository's secrets."

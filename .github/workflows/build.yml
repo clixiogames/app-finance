@@ -191,3 +191,13 @@ jobs:
           gh release create test-latest build/android/app-finance-test.apk -R "$GITHUB_REPOSITORY" \
             --prerelease --target "$GITHUB_SHA" --title "Android test build (latest)" \
             --notes "Automatic test build from $(date -u +%Y-%m-%d) (commit ${GITHUB_SHA::7}). Open this page on your Android phone, tap app-finance-test.apk, and allow installing from your browser when asked."
+      - name: Publish Google Play bundle (.aab to upload in Play Console)
+        if: env.SIGNED == '1' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete play-latest -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          sleep 5
+          gh release create play-latest build/android/app-finance.aab -R "$GITHUB_REPOSITORY" \
+            --prerelease --target "$GITHUB_SHA" --title "Google Play bundle (latest)" \
+            --notes "Signed app bundle for Google Play, version code ${GITHUB_RUN_NUMBER}, built $(date -u +%Y-%m-%d) from ${GITHUB_SHA::7}. Download app-finance.aab and upload it in Play Console › Testing › Closed testing › Create new release."
