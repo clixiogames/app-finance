@@ -55,7 +55,7 @@ func refresh() -> void:
 		bb.add_child(Ui.label("Back up your data", "Strong"))
 		bb.add_child(Ui.label("Everything is stored only on this device. Save a backup file now and then (for example to Google Drive).", "Muted", true))
 		bb.add_child(Ui.button("Save a backup", "", func():
-			Files.save_text(Store.export_json(), "app-finance-backup-%s.json" % Dates.today(), func(ok: bool, msg: String):
+			Files.save_text(Store.export_json(), "moneyfold-backup-%s.json" % Dates.today(), func(ok: bool, msg: String):
 				if ok:
 					Store.mark_backup_done()
 					refresh()

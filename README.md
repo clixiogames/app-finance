@@ -1,4 +1,4 @@
-# APP FINANCE
+# Moneyfold
 
 All your savings and investments in one place — an Android app (Google Play) and an identical website.
 Built with **Godot 4.7.2**. Data stays on the device; no accounts, no servers, €0 to run.
