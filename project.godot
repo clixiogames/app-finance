@@ -1,11 +1,11 @@
 ; Engine configuration file.
-; Godot 4.7.2 — APP FINANCE
+; Godot 4.7.2 — Moneyfold
 
 config_version=5
 
 [application]
 
-config/name="APP FINANCE"
+config/name="Moneyfold"
 config/description="All your savings and investments in one place."
 config/version="0.3.0"
 run/main_scene="res://src/ui/main.tscn"

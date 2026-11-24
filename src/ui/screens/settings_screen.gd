@@ -84,7 +84,7 @@ func refresh() -> void:
 	var abb := Ui.body(ab)
 	abb.add_child(Ui.label("About", "Strong"))
 	abb.add_child(Ui.kv("Version", str(ProjectSettings.get_setting("application/config/version", "0.1.0"))))
-	abb.add_child(Ui.label("APP FINANCE shows and organises your own data. It does not give investment advice and never moves money. Interest on savings accounts is an estimate.", "Muted", true))
+	abb.add_child(Ui.label("Moneyfold shows and organises your own data. It does not give investment advice and never moves money. Interest on savings accounts is an estimate.", "Muted", true))
 	abb.add_child(Ui.label("Data sources: Alpha Vantage · OpenFIGI · CoinGecko (crypto prices) · European Central Bank via Frankfurter (exchange rates).", "Faint", true))
 	abb.add_child(Ui.button("Privacy policy", "Ghost", func(): OS.shell_open("https://clixiogames.github.io/app-finance/privacy.html")))
 	abb.add_child(Ui.button("Delete all my data", "Danger", func():
@@ -95,7 +95,7 @@ func refresh() -> void:
 
 
 func _backup_name() -> String:
-	return "app-finance-backup-%s.json" % Dates.today()
+	return "moneyfold-backup-%s.json" % Dates.today()
 
 
 func _export() -> void:

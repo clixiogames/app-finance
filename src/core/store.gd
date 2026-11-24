@@ -446,7 +446,7 @@ func import_json(text: String) -> String:
 	if not parsed is Dictionary:
 		return "This file is not a valid backup."
 	if parsed.get("app", "") != "app-finance":
-		return "This file is not an APP FINANCE backup."
+		return "This file is not a Moneyfold backup."
 	if int(parsed.get("schema", 0)) > SCHEMA:
 		return "This backup comes from a newer version of the app. Please update the app first."
 	var keep := {}
