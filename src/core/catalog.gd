@@ -23,16 +23,33 @@ const HOLDING_TYPES := [
 	{"id": "loan", "label": "Loan / debt", "group": "Debts", "valuation": "manual"},
 ]
 
+## Account types shown when creating an account. "holding" = holding type suggested first.
+## "hidden" kinds are kept only so older accounts still show a label; they are not offered for new accounts.
 const ACCOUNT_KINDS := [
-	{"id": "pea", "label": "PEA"},
-	{"id": "cto", "label": "Brokerage account (CTO)"},
-	{"id": "assurance_vie", "label": "Life insurance (assurance vie)"},
-	{"id": "per", "label": "Retirement plan (PER)"},
-	{"id": "employee", "label": "Employee savings (PEE / PERCO)"},
-	{"id": "bank_savings", "label": "Bank savings"},
-	{"id": "crypto", "label": "Crypto exchange / wallet"},
-	{"id": "property", "label": "Property"},
-	{"id": "other", "label": "Other"},
+	{"id": "current", "label": "Current account (compte courant)", "holding": "cash"},
+	{"id": "livret_a", "label": "Livret A", "holding": "livret_a"},
+	{"id": "ldds", "label": "LDDS", "holding": "ldds"},
+	{"id": "lep", "label": "LEP", "holding": "lep"},
+	{"id": "livret_jeune", "label": "Livret Jeune", "holding": "savings"},
+	{"id": "bank_savings", "label": "Bank savings account (livret bancaire)", "holding": "savings"},
+	{"id": "cel", "label": "CEL (compte épargne logement)", "holding": "home_savings"},
+	{"id": "pel", "label": "PEL (plan épargne logement)", "holding": "home_savings"},
+	{"id": "term", "label": "Term deposit (compte à terme)", "holding": "term_deposit"},
+	{"id": "pea", "label": "PEA", "holding": "etf"},
+	{"id": "pea_pme", "label": "PEA-PME", "holding": "etf"},
+	{"id": "cto", "label": "Brokerage account (CTO)", "holding": "etf"},
+	{"id": "assurance_vie", "label": "Life insurance (assurance vie)", "holding": "euro_fund"},
+	{"id": "capitalisation", "label": "Capitalisation contract (contrat de capitalisation)", "holding": "euro_fund"},
+	{"id": "per", "label": "Individual retirement plan (PER individuel)", "holding": "retirement"},
+	{"id": "per_company", "label": "Company retirement plan (PERCOL / PERCO / PERO)", "holding": "retirement"},
+	{"id": "employee", "label": "Employee savings plan (PEE / PEG)", "holding": "retirement"},
+	{"id": "crypto", "label": "Crypto exchange / wallet", "holding": "crypto"},
+	{"id": "property", "label": "Property (home, rental)", "holding": "property"},
+	{"id": "scpi", "label": "Real-estate funds (SCPI / OPCI)", "holding": "other"},
+	{"id": "crowdfunding", "label": "Crowdfunding / crowdlending", "holding": "other"},
+	{"id": "cash", "label": "Cash (wallet, at home)", "holding": "cash"},
+	{"id": "loan", "label": "Loan / mortgage", "holding": "loan"},
+	{"id": "other", "label": "Other", "holding": "etf", "hidden": true},
 ]
 
 const MOVEMENT_KINDS := {
@@ -59,10 +76,23 @@ static func holding_type(id: String) -> Dictionary:
 
 
 static func account_kind_label(id: String) -> String:
+	return account_kind(id).get("label", "Other")
+
+
+static func account_kind(id: String) -> Dictionary:
 	for k in ACCOUNT_KINDS:
 		if k["id"] == id:
-			return k["label"]
-	return "Other"
+			return k
+	return {}
+
+
+## Account types offered in the picker (plus the account's current type, if it is an old hidden one).
+static func account_kind_choices(current: String = "") -> Array:
+	var out := []
+	for k in ACCOUNT_KINDS:
+		if not k.get("hidden", false) or k["id"] == current:
+			out.append([k["id"], k["label"]])
+	return out
 
 
 ## Movement kinds that make sense for a holding.

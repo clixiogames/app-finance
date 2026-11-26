@@ -37,6 +37,7 @@ func _init() -> void:
 	test_parsers()
 	test_migration()
 	test_spending()
+	test_account_kinds()
 	print("Tests: %d passed, %d failed" % [passed, failed])
 	quit(1 if failed > 0 else 0)
 
@@ -389,3 +390,19 @@ func test_spending() -> void:
 
 
 const StoreScript = preload("res://src/core/store.gd")
+
+
+func test_account_kinds() -> void:
+	var ids := {}
+	for k in Catalog.ACCOUNT_KINDS:
+		check(not ids.has(k["id"]), "account kind unique: " + k["id"])
+		ids[k["id"]] = true
+		check(not Catalog.holding_type(k["holding"]).is_empty() and Catalog.holding_type(k["holding"])["id"] == k["holding"], "account kind suggests a real holding type: " + k["id"])
+	var choices := Catalog.account_kind_choices()
+	for c in choices:
+		check(c[0] != "other", "Other not offered for new accounts")
+	check(choices.size() >= 20, "full list of account types")
+	eq(Catalog.account_kind_choices("other").size(), choices.size() + 1, "old Other account keeps its type when edited")
+	eq(Catalog.account_kind_label("pea"), "PEA", "label PEA")
+	eq(Catalog.account_kind_label("unknown"), "Other", "unknown kind label")
+	eq(Catalog.account_kind("livret_a")["holding"], "livret_a", "Livret A account suggests Livret A")
