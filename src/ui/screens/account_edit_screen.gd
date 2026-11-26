@@ -26,10 +26,7 @@ func refresh() -> void:
 		return
 	_built = true
 	var a: Dictionary = Store.portfolio.account(account_id) if account_id != "" else {}
-	var kinds := []
-	for k in Catalog.ACCOUNT_KINDS:
-		kinds.append([k["id"], k["label"]])
-	_kind = Ui.option(kinds, a.get("kind", "pea"))
+	_kind = Ui.option(Catalog.account_kind_choices(a.get("kind", "")), a.get("kind", "pea"))
 	add_child(Ui.field("Type", _kind))
 	_name = Ui.line_edit("e.g. PEA Boursorama", a.get("name", ""))
 	add_child(Ui.field("Name", _name))

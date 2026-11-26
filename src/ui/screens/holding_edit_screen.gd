@@ -82,18 +82,7 @@ func refresh() -> void:
 
 func _default_type() -> String:
 	var a: Dictionary = Store.portfolio.account(account_id)
-	match a.get("kind", ""):
-		"bank_savings":
-			return "livret_a"
-		"crypto":
-			return "crypto"
-		"assurance_vie":
-			return "euro_fund"
-		"property":
-			return "property"
-		"employee", "per":
-			return "retirement"
-	return "etf"
+	return Catalog.account_kind(a.get("kind", "")).get("holding", "etf")
 
 
 func _placeholder() -> String:

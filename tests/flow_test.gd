@@ -33,14 +33,14 @@ func _ready() -> void:
 	main.push(preload("res://src/ui/screens/account_edit_screen.gd").new())
 	await _frames()
 	var ae = main.current()
-	ae._name.text = "Livrets"
-	ae._kind.select(_index_of(ae._kind, "bank_savings"))
+	ae._name.text = "Livret A"
+	ae._kind.select(_index_of(ae._kind, "livret_a"))
 	ae._save()
 	await _frames()
 	check(Store.data["accounts"].size() == 1, "account created")
 	var he = main.current()
 	check(he.get_script().resource_path.ends_with("holding_edit_screen.gd"), "goes to new holding")
-	check(Ui.option_value(he._type) == "livret_a", "bank savings defaults to Livret A")
+	check(Ui.option_value(he._type) == "livret_a", "Livret A account suggests Livret A")
 	he._save()
 	await _frames()
 	check(Store.data["holdings"].size() == 1, "holding created")
